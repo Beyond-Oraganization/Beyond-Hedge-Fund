@@ -11,10 +11,14 @@ test.afterEach(async ({ page }) => {
   expect(await cspViolations(page)).toEqual([])
 })
 
-test('connects, then shows the session', async ({ page }) => {
-  await connected(page)
-  await page.getByRole('link', { name: 'Open the session' }).click()
+test('connects, signs in to a trading account, then shows the session', async ({ page }) => {
+  await connect(page)
+  await page.getByRole('link', { name: 'Add a trading account' }).first().click()
+  await page.getByLabel('Login', { exact: true }).fill('demo')
+  await page.getByLabel('Password', { exact: true }).fill('demo-password')
+  await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page.getByText('Equity', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Mock bot · demo: / })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Open positions' })).toBeVisible()
   await expect(shown(page.getByText('XAUUSD'))).toBeVisible()
   await expect(shown(page.getByText('DEMO', { exact: true }))).toBeVisible()
@@ -31,16 +35,55 @@ test('an unreachable bot gets the checklist, with this page’s origin to allow'
   await expect(page.getByText(/BEYONDBOT_API_ORIGINS=http:\/\/localhost:4300/).first()).toBeVisible()
 })
 
-test('a bot that is signed out says so and offers to sign it in', async ({ page }) => {
-  await resetBot({ signedIn: '0' })
-  await connected(page)
+test('without a trading account the device says so, even while the bot trades, and offers to add one', async ({ page }) => {
+  await connect(page)
+  await expect(page.getByRole('link', { name: 'Add a trading account' }).first()).toBeVisible()
   await page.goto('#/')
-  await expect(page.getByRole('heading', { name: 'The bot is not signed in.' })).toBeVisible()
-  await page.getByRole('link', { name: 'Sign the bot in' }).first().click()
+  await expect(page.getByRole('heading', { name: 'No trading account yet.' })).toBeVisible()
+  await page.getByRole('link', { name: 'Add a trading account' }).first().click()
   await page.getByLabel('Login', { exact: true }).fill('demo')
+  await page.getByLabel('Password', { exact: true }).fill('wrong-password')
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page.getByText('Invalid login or password.').first()).toBeVisible()
   await page.getByLabel('Password', { exact: true }).fill('demo-password')
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page.getByText('Equity', { exact: true })).toBeVisible()
+})
+
+test('creates a second account, holds both, switches, and signs one out', async ({ page }) => {
+  await connected(page)
+  await page.goto('#/account')
+  await page.getByRole('radio', { name: 'Create an account' }).check()
+  await page.getByLabel('New login').fill('roman')
+  await page.getByLabel('Password', { exact: true }).fill('roman-password')
+  await page.getByLabel('Password again').fill('roman-password')
+  await page.getByRole('radio', { name: 'Bybit' }).check()
+  await page.getByLabel('API key').fill('key-1')
+  await page.getByLabel('API secret').fill('secret-1')
+  await page.getByRole('button', { name: 'Create the account' }).click()
+  await expect(page.getByRole('heading', { name: 'Trading as roman.' })).toBeVisible()
+  const list = page.getByRole('list', { name: 'Trading accounts' })
+  await expect(list.getByText('demo', { exact: true })).toBeVisible()
+  await list.locator('li', { hasText: 'demo' }).getByRole('button', { name: 'Make current' }).click()
+  await expect(page.getByRole('heading', { name: 'Trading as demo.' })).toBeVisible()
+  await list.locator('li', { hasText: 'roman' }).getByRole('button', { name: 'Sign out', exact: true }).click()
+  await expect(list.getByText('roman', { exact: true })).toHaveCount(0)
+})
+
+test('a login that is taken is refused at once', async ({ page }) => {
+  await connect(page)
+  await expect(page.getByRole('link', { name: 'Add a trading account' }).first()).toBeVisible()
+  await page.goto('#/account')
+  await page.getByRole('radio', { name: 'Create an account' }).check()
+  await page.getByLabel('New login').fill('demo')
+  await page.getByLabel('Password', { exact: true }).fill('another-password')
+  await page.getByLabel('Password again').fill('another-password')
+  await page.getByLabel('Client ID').fill('1')
+  await page.getByLabel('Client secret').fill('s')
+  await page.getByLabel('Access token').fill('t')
+  await page.getByLabel('Account ID').fill('7')
+  await page.getByRole('button', { name: 'Create the account' }).click()
+  await expect(page.getByText("The login 'demo' is taken; choose another.").first()).toBeVisible()
 })
 
 test('adds a market: the busy state, a cancel, and Resume', async ({ page }) => {
@@ -58,15 +101,93 @@ test('adds a market: the busy state, a cancel, and Resume', async ({ page }) => 
   await expect(shown(page.getByRole('link', { name: 'EURPLN 1h', exact: true }))).toBeVisible()
 })
 
-test('backtests, draws the balance over time and keeps the run', async ({ page }) => {
+test('backtests on this device with the bot’s engine: the balance, the trade returns, a Monte Carlo by each method, and the runs kept', async ({ page }) => {
   await connected(page)
   await page.goto('#/backtest')
   await page.getByRole('button', { name: 'Run the backtest' }).click()
+  // The first run copies the market's candles and starts the engine (WebAssembly, in a worker).
+  await expect(page.getByRole('heading', { name: 'Monte Carlo' })).toBeVisible({ timeout: 60_000 })
   await expect(page.getByText('Profit / loss').first()).toBeVisible()
-  await page.getByRole('button', { name: 'Draw the balance over time' }).click()
-  await expect(page.getByRole('img', { name: /^Balance from/ })).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByRole('img', { name: /^Balance from/ })).toBeVisible()
+  await expect(page.getByRole('img', { name: /^Returns of \d+ trades/ })).toBeVisible()
+  // 200 alternative price histories by bootstrap, backtested in several workers.
+  await expect(page.getByRole('img', { name: /^The balance over time in 200 alternative price histories/ })).toBeVisible()
+  await expect(page.getByText(/of 200 alternative pasts ended above the starting balance/)).toBeVisible()
+  await expect(page.getByText(/^The real history beat \d+% of them\.$/)).toBeVisible()
+  await expect(page.getByRole('img', { name: /^The real price from .* and 20 alternative histories/ })).toBeVisible()
+  await expect(page.getByText('All figures')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Saved runs' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Show' }).first()).toBeVisible()
+  // A second run, by Brownian motion, asks the bot only for the candles from the newest one on.
+  await page.getByRole('radio', { name: '100 scenarios' }).check()
+  await page.getByRole('radio', { name: 'Brownian motion (random walk)' }).check()
+  await page.getByRole('button', { name: 'Run the backtest' }).click()
+  await expect(page.getByRole('button', { name: 'Show' }).nth(1)).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByText(/of 100 alternative pasts ended above the starting balance/)).toBeVisible()
+  await expect(page.getByText(/Made by Brownian motion: a random walk with the real drift/)).toBeVisible()
+  // A table on a computer, a list of cards on a phone.
+  const savedRuns = page.getByRole('table', { name: 'Saved backtests' }).or(page.getByRole('list', { name: 'Saved backtests' }))
+  await expect(savedRuns.getByText(/\d% · Brownian motion/)).toBeVisible()
+  await expect(savedRuns.getByText(/\d% · bootstrap/)).toBeVisible()
+  // The copy shows in Settings, where it can be cleared.
+  await page.goto('#/settings')
+  const copies = page.getByRole('heading', { name: 'Candles for backtests' }).locator('..')
+  await expect(shown(copies.getByText('XAUUSD 1h'))).toBeVisible()
+  await shown(copies.getByRole('button', { name: 'Clear' })).click()
+  await expect(copies.getByText('None yet.')).toBeVisible()
+})
+
+test('backtests rules of its own, built from the strategy’s syntax, and shows the bot’s message for a band it has not got', async ({ page }) => {
+  await connected(page)
+  await page.goto('#/backtest')
+  const first = page.getByRole('group', { name: 'Rule 1' })
+  await first.getByRole('combobox', { name: 'Rule 1: long or short' }).selectOption('short')
+  await first.getByRole('combobox', { name: 'Rule 1: up or down' }).selectOption('down')
+  await first.getByRole('combobox', { name: 'Rule 1: below or above' }).selectOption('above')
+  const second = page.getByRole('group', { name: 'Rule 2' })
+  await second.getByRole('combobox', { name: 'Rule 2: long or short' }).selectOption('short')
+  await second.getByRole('combobox', { name: 'Rule 2: up or down' }).selectOption('up')
+  await second.getByRole('combobox', { name: 'Rule 2: below or above' }).selectOption('above')
+  await expect(page.getByText('Your rules', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Run the backtest' }).click()
+  await page.getByText('All figures').click()
+  await expect(page.getByText('open short on cross down above 1; close short on cross up above 1').first()).toBeVisible({ timeout: 60_000 })
+  await first.getByRole('spinbutton').fill('3')
+  await page.getByRole('button', { name: 'Run the backtest' }).click()
+  await expect(page.getByText(/above 3 is not a band/).first()).toBeVisible()
+})
+
+test('backtests with a fixed amount, and shows the sizing and this run’s Kelly among all the figures', async ({ page }) => {
+  await connected(page)
+  await page.goto('#/backtest')
+  await page.getByRole('combobox', { name: 'Position sizing' }).selectOption('fixed')
+  await page.getByLabel("Amount each position is worth, in the account's currency").fill('500')
+  await page.getByRole('button', { name: 'Run the backtest' }).click()
+  await page.getByText('All figures').click({ timeout: 60_000 })
+  const figures = page.locator('details', { hasText: 'All figures' })
+  await expect(figures.locator('dd').filter({ hasText: '500.00 per position' })).toBeVisible()
+  await expect(figures.locator('dt', { hasText: 'Kelly of this run' })).toBeVisible()
+})
+
+test('starts a session sized by Kelly after confirming it, names the backtest behind it, and shows the bot’s refusal without an edge before anything opens', async ({ page }) => {
+  await connected(page)
+  await page.goto('#/trading')
+  await expect(page.getByRole('heading', { name: '1 strategy trading.' })).toBeVisible()
+  await page.getByRole('combobox', { name: 'Position sizing' }).selectOption('kelly')
+  // The check before starting (trading check) refuses it at once: nothing opens.
+  await page.getByRole('button', { name: 'Start trading' }).click()
+  await expect(page.getByText(/Kelly sizing cannot use backtest #\d+: .*no edge/)).toBeVisible()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  // The default rules have no edge on the mock's candles; opening on a deeper band has one.
+  await page.getByRole('group', { name: 'Rule 1' }).getByRole('spinbutton').fill('2')
+  await page.getByRole('button', { name: 'Start trading' }).click()
+  await expect(page.getByRole('dialog').getByText('Kelly: the full Kelly percent of the balance, from a backtest of this setup')).toBeVisible()
+  await expect(page.getByText(/Kelly sizing cannot use backtest/)).toHaveCount(0)
+  await page.getByRole('dialog').getByRole('button', { name: 'Start trading' }).click()
+  await expect(page.getByRole('heading', { name: '2 strategies trading.' })).toBeVisible()
+  const card = page.locator('li', { hasText: 'sample 2 · sample' })
+  await expect(card.getByText(/^Kelly [\d.]+% of the balance per position/)).toBeVisible()
+  await expect(card.getByText(/from backtest #\d+: \d+ trades/)).toBeVisible()
 })
 
 test('stops and starts trading, each after a confirmation', async ({ page }) => {
@@ -81,6 +202,41 @@ test('stops and starts trading, each after a confirmation', async ({ page }) => 
   await page.getByRole('button', { name: 'Start trading' }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Start trading' }).click()
   await expect(page.getByRole('heading', { name: '1 strategy trading.' })).toBeVisible()
+})
+
+test('two named sessions trade one market, and one stops by its name', async ({ page }) => {
+  await connected(page)
+  await page.goto('#/trading')
+  await expect(page.getByRole('heading', { name: '1 strategy trading.' })).toBeVisible()
+  await page.getByLabel('Session name (optional)').fill('variant 2')
+  await expect(page.getByText(/already traded by “sample”/)).toBeVisible()
+  await page.getByRole('button', { name: 'Start trading' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Start trading' }).click()
+  await expect(page.getByRole('heading', { name: '2 strategies trading.' })).toBeVisible()
+  const card = page.locator('li', { hasText: 'variant 2 · sample' })
+  await card.getByRole('button', { name: 'Stop', exact: true }).click()
+  await expect(page.getByRole('dialog').getByRole('heading', { name: 'Stop “variant 2”?' })).toBeVisible()
+  await page.getByRole('dialog').getByRole('button', { name: 'Stop', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '1 strategy trading.' })).toBeVisible()
+})
+
+test('remember me opens the bot after a reload; locking it asks for the chosen passphrase, then remembers it again', async ({ page }) => {
+  await connected(page)
+  await page.reload()
+  await expect(page.getByText('Equity', { exact: true })).toBeVisible()
+  // The header's lock button, on a phone as on a computer.
+  await page.getByRole('banner').getByRole('button', { name: 'Lock the bot' }).click()
+  await page.getByLabel('Passphrase', { exact: true }).fill('correct horse battery')
+  await page.getByLabel('Passphrase again').fill('correct horse battery')
+  await page.getByRole('dialog').getByRole('button', { name: 'Lock the bot' }).click()
+  await expect(page.getByRole('heading', { name: 'Unlock Mock bot.' })).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Unlock Mock bot.' })).toBeVisible()
+  await page.getByLabel('Passphrase').fill('correct horse battery')
+  await page.getByRole('button', { name: 'Unlock' }).click()
+  await expect(page.getByText('Equity', { exact: true })).toBeVisible()
+  await page.reload()
+  await expect(page.getByText('Equity', { exact: true })).toBeVisible()
 })
 
 test('places a market order after review, then closes it', async ({ page }) => {
@@ -117,7 +273,6 @@ test('the console runs a command, refuses a terminal-only one and asks before a 
   await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click()
   await input.fill(`login demo --password=${'x'}`)
   await input.press('Enter')
-  await page.getByRole('dialog').getByRole('button', { name: 'Run it' }).click()
   await expect(page.getByText('login demo --password=***').first()).toBeVisible()
   await expect(page.getByText(KEY)).toHaveCount(0)
 })
@@ -134,13 +289,39 @@ test('the two-markets bot bug is explained, with the broker’s positions instea
   await expect(page.getByText('A known bot bug').first()).toBeVisible()
 })
 
+test('the navigation reaches every section: a sidebar on a computer, sections and tabs on a phone', async ({ page, isMobile }) => {
+  await connected(page)
+  await page.goto('#/')
+  if (isMobile) {
+    const sections = page.getByRole('navigation', { name: 'Sections' })
+    await expect(sections.getByRole('link', { name: 'Trading' })).toHaveAttribute('aria-current', 'page')
+    await sections.getByRole('link', { name: 'Research' }).click()
+    await expect(page).toHaveURL(/#\/markets$/)
+    await page.getByRole('navigation', { name: 'Research screens' }).getByRole('link', { name: 'Backtest' }).click()
+    await expect(page).toHaveURL(/#\/backtest$/)
+    await expect(sections.getByRole('link', { name: 'Research' })).toHaveAttribute('aria-current', 'page')
+    await sections.getByRole('link', { name: 'Admin' }).click()
+    await page.getByRole('navigation', { name: 'Admin screens' }).getByRole('link', { name: 'System' }).click()
+  } else {
+    const side = page.getByRole('navigation', { name: 'Main navigation' })
+    await expect(side.getByRole('link', { name: 'Account', exact: true })).toHaveAttribute('aria-current', 'page')
+    await side.getByRole('link', { name: 'Backtest' }).click()
+    await expect(page).toHaveURL(/#\/backtest$/)
+    await expect(side.getByRole('link', { name: 'Backtest' })).toHaveAttribute('aria-current', 'page')
+    await side.getByRole('link', { name: 'System' }).click()
+  }
+  await expect(page).toHaveURL(/#\/system$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Health.' })).toBeVisible()
+})
+
 for (const theme of ['classic', 'light'] as const) {
   test(`every screen passes axe (${theme} theme)`, async ({ page }) => {
     if (theme === 'light') await page.addInitScript(() => localStorage.setItem('beyondia-theme', 'light'))
     await connected(page)
-    for (const route of ['', 'trading', 'markets', 'markets/XAUUSD/1h', 'backtest', 'orders', 'strategies', 'console', 'system', 'settings', 'account', 'connections', 'install', 'connect']) {
+    for (const route of ['', 'trading', 'markets', 'markets/XAUUSD/1h', 'backtest', 'orders', 'strategies', 'console', 'system', 'settings', 'account', 'connections', 'install', 'connect', 'signin', 'me', 'home', 'activity', 'overview', 'clients', 'clients/1', 'clients/1/view', 'people', 'managed', 'audit', 'my-strategies', 'menu', 'me/statements/2026-10', 'clients/1/statements/2026-10']) {
       await page.goto(`#/${route}`)
-      await page.locator('main h1').first().waitFor()
+      // The screen being left can stay in the page, hidden, while the next one loads: wait for a visible heading.
+      await page.locator('main h1').filter({ visible: true }).first().waitFor()
       await page.waitForTimeout(800)
       const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice']).exclude('.chart').analyze()
       expect(results.violations.map((v) => `${route || 'session'}: ${v.id} (${v.nodes.length}) ${v.nodes[0]?.target}`)).toEqual([])
