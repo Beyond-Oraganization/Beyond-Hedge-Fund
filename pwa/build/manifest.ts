@@ -4,7 +4,7 @@ import type { ManifestOptions } from 'vite-plugin-pwa'
  * Browsers resolve a relative manifest `id` against the origin, not the app's folder. Every GitHub Pages site
  * of the organisation shares https://beyond-oraganization.github.io, so the id names the app's path explicitly.
  */
-export const DEFAULT_APP_ID = '/Beyond-Website/app/'
+export const DEFAULT_APP_ID = '/Beyond-Hedge-Fund/app/'
 
 export const NAME = 'Beyond Bot'
 export const DESCRIPTION =

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const APP = 'http://localhost:4300/Beyond-Website/app/'
+const APP = 'http://localhost:4300/Beyond-Hedge-Fund/app/'
 // The mock bot's own test address, key and demo account, as in ../pwa/e2e/helpers.ts.
 const BOT = 'http://127.0.0.1:4400'
 const KEY = 'mock-bot-key-0123456789abcdef0123456789abcdef'
@@ -96,6 +96,6 @@ test('stays on the app: a link to another site opens in the person’s browser, 
   }, `${BOT}/elsewhere`)
 
   await expect.poll(() => app.evaluate(() => globalThis.openedOutside)).toEqual([`${BOT}/elsewhere`])
-  expect(page.url()).toContain('/Beyond-Website/app/')
+  expect(page.url()).toContain('/Beyond-Hedge-Fund/app/')
   await app.close()
 })

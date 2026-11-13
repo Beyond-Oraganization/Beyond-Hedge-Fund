@@ -15,7 +15,7 @@ const RUNS = 3
 const minimum = Number(process.argv[2] ?? 90)
 const port = 4310
 // A first visit without a bot shows the Connect screen: what a new user loads first.
-const url = `http://localhost:${port}/Beyond-Website/app/`
+const url = `http://localhost:${port}/Beyond-Hedge-Fund/app/`
 const folder = mkdtempSync(join(tmpdir(), 'lighthouse-'))
 const run = promisify(execFile)
 

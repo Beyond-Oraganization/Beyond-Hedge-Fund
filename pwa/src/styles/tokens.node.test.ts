@@ -21,7 +21,7 @@ const contrast = (a: string, b: string) => {
   return (high! + 0.05) / (low! + 0.05)
 }
 
-const site = tokens(readFileSync(new URL('../../../beyondia.css', import.meta.url), 'utf8'))
+const site = tokens(readFileSync(new URL('./site-tokens.css', import.meta.url), 'utf8'))
 const app = tokens(readFileSync(new URL('./tokens.css', import.meta.url), 'utf8'))
 
 describe('the app’s colours are the website’s', () => {

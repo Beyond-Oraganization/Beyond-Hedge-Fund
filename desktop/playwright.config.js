@@ -11,7 +11,7 @@ export default defineConfig({
   expect: { timeout: 20_000 },
   workers: 1,
   webServer: [
-    { command: 'node ../pwa/scripts/serve-app.mjs 4300', url: 'http://localhost:4300/Beyond-Website/app/', reuseExistingServer: !process.env.CI },
+    { command: 'node ../pwa/scripts/serve-app.mjs 4300', url: 'http://localhost:4300/Beyond-Hedge-Fund/app/', reuseExistingServer: !process.env.CI },
     { command: 'node ../pwa/mock-bot/server.mjs --port 4400 --control --quiet', url: 'http://127.0.0.1:4400/', reuseExistingServer: !process.env.CI },
   ],
 })

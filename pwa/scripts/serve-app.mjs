@@ -1,5 +1,5 @@
-// Serves the Beyond-Website folder the way GitHub Pages does: the site at /Beyond-Website/, so the built app is at
-// /Beyond-Website/app/ (its real path), on http://localhost (a secure context, so it can be installed), with text
+// Serves this repository the way GitHub Pages does: the repository at /Beyond-Hedge-Fund/, so the built app is at
+// /Beyond-Hedge-Fund/app/ (its real path), on http://localhost (a secure context, so it can be installed), with text
 // files gzipped as Pages sends them.
 //   node scripts/serve-app.mjs [port]
 import { createReadStream, statSync } from 'node:fs'
@@ -20,11 +20,11 @@ const TYPES = {
 export function serve(listenPort = port) {
   const server = http.createServer((req, res) => {
     const path = decodeURIComponent(new URL(req.url, 'http://x').pathname)
-    if (!path.startsWith('/Beyond-Website/')) {
-      res.writeHead(302, { Location: '/Beyond-Website/app/' })
+    if (!path.startsWith('/Beyond-Hedge-Fund/')) {
+      res.writeHead(302, { Location: '/Beyond-Hedge-Fund/app/' })
       return res.end()
     }
-    let file = normalize(join(root, path.slice('/Beyond-Website/'.length)))
+    let file = normalize(join(root, path.slice('/Beyond-Hedge-Fund/'.length)))
     if (!file.startsWith(root)) {
       res.writeHead(403)
       return res.end()
@@ -48,5 +48,5 @@ export function serve(listenPort = port) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   await serve()
-  console.log(`Serving the site on http://localhost:${port}/Beyond-Website/ (the app at /Beyond-Website/app/)`)
+  console.log(`Serving the repository on http://localhost:${port}/Beyond-Hedge-Fund/ (the app at /Beyond-Hedge-Fund/app/)`)
 }
