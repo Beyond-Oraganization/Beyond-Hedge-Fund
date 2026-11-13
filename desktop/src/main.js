@@ -11,7 +11,7 @@ import { LocalDatabase } from './database.js'
  *
  * BEYOND_BOT_APP_URL and BEYOND_BOT_DATA_DIR point it elsewhere (the tests use a local app and a throwaway folder).
  */
-const APP_URL = process.env.BEYOND_BOT_APP_URL ?? 'https://beyond-oraganization.github.io/Beyond-Website/app/'
+const APP_URL = process.env.BEYOND_BOT_APP_URL ?? 'https://beyond-oraganization.github.io/Beyond-Hedge-Fund/app/'
 const here = dirname(fileURLToPath(import.meta.url))
 
 if (process.env.BEYOND_BOT_DATA_DIR) app.setPath('userData', process.env.BEYOND_BOT_DATA_DIR)

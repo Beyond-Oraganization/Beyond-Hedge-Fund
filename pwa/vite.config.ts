@@ -11,7 +11,7 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 const jekyllSafe = (name: string) => name.replace(/[^\w.-]/g, '-').replace(/^[_.-]+/, '')
 
 export default defineConfig({
-  // Relative, so one build works under /Beyond-Website/app/, in `vite preview` and anywhere else.
+  // Relative, so one build works under /Beyond-Hedge-Fund/app/, in `vite preview` and anywhere else.
   base: './',
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),

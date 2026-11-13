@@ -2,9 +2,9 @@ name: Beyond Bot app
 
 on:
   push:
-    paths: ["pwa/**", "app/**", "beyondia.css", "fonts/**", ".github/workflows/app.yml"]
+    paths-ignore: ["desktop/**", "**.md"]
   pull_request:
-    paths: ["pwa/**", "app/**", "beyondia.css", "fonts/**", ".github/workflows/app.yml"]
+    paths-ignore: ["desktop/**", "**.md"]
 
 permissions:
   contents: read

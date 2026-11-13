@@ -12,9 +12,9 @@ export default defineConfig({
   fullyParallel: false,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['github'], ['list']] : 'list',
-  use: { baseURL: 'http://localhost:4300/Beyond-Website/app/', reducedMotion: 'reduce', trace: 'retain-on-failure', serviceWorkers: 'allow' },
+  use: { baseURL: 'http://localhost:4300/Beyond-Hedge-Fund/app/', reducedMotion: 'reduce', trace: 'retain-on-failure', serviceWorkers: 'allow' },
   webServer: [
-    { command: 'node scripts/serve-app.mjs 4300', url: 'http://localhost:4300/Beyond-Website/app/', reuseExistingServer: !process.env.CI },
+    { command: 'node scripts/serve-app.mjs 4300', url: 'http://localhost:4300/Beyond-Hedge-Fund/app/', reuseExistingServer: !process.env.CI },
     { command: 'node mock-bot/server.mjs --port 4400 --control --quiet --add-delay 2500', url: 'http://127.0.0.1:4400/', reuseExistingServer: !process.env.CI },
   ],
   projects: [

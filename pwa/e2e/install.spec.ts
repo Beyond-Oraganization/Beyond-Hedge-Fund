@@ -1,7 +1,7 @@
 import { chromium, expect, test } from '@playwright/test'
 import { connected, resetBot } from './helpers.ts'
 
-const APP = 'http://localhost:4300/Beyond-Website/app/'
+const APP = 'http://localhost:4300/Beyond-Hedge-Fund/app/'
 
 test.describe('installing', () => {
   test.skip(({ isMobile }) => isMobile, 'runs once, in the desktop project')
@@ -22,11 +22,11 @@ test.describe('installing', () => {
       expect(installabilityErrors).toEqual([])
       const ids = (await cdp.send('Page.getAppId')) as { appId?: string; recommendedId?: string }
       expect(ids.appId).toBe(`${APP}`)
-      expect(ids.recommendedId).toBe('/Beyond-Website/app/')
+      expect(ids.recommendedId).toBe('/Beyond-Hedge-Fund/app/')
       const { errors, data } = (await cdp.send('Page.getAppManifest')) as { errors: unknown[]; data?: string }
       expect(errors).toEqual([])
       const manifest = JSON.parse(data ?? '{}')
-      expect(manifest).toMatchObject({ id: '/Beyond-Website/app/', name: 'Beyond Bot', short_name: 'Beyond Bot', display: 'standalone', start_url: './#/', scope: './', theme_color: '#003049' })
+      expect(manifest).toMatchObject({ id: '/Beyond-Hedge-Fund/app/', name: 'Beyond Bot', short_name: 'Beyond Bot', display: 'standalone', start_url: './#/', scope: './', theme_color: '#003049' })
       expect(manifest.shortcuts.map((s: { name: string }) => s.name)).toEqual(['Session', 'Trading', 'Markets', 'Backtest'])
       expect(manifest.screenshots.filter((s: { form_factor: string }) => s.form_factor === 'wide').length).toBeGreaterThan(0)
       expect(manifest.screenshots.filter((s: { form_factor: string }) => s.form_factor === 'narrow').length).toBeGreaterThan(0)

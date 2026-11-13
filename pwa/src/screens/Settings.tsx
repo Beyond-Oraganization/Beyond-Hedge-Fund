@@ -168,7 +168,7 @@ export default function Settings() {
             (Apache-2.0). Fonts: Archivo Black and IBM Plex (SIL Open Font License), served from this site.
           </p>
           <p className="small">
-            <a className="underline" href="../techbot.html">
+            <a className="underline" href="https://beyond-oraganization.github.io/Beyond-Website/techbot.html">
               Beyond Bot on the Beyondia website
             </a>
           </p>

@@ -1,0 +1,90 @@
+# Beyond Hedge Fund
+
+**Beyond Bot**, the app for Beyondia's trading bot: an installable web app (PWA) and a desktop app. It moved here from [Beyond-Website](https://github.com/Beyond-Oraganization/Beyond-Website), with its history.
+
+- `pwa/` — the web app's source (React, TypeScript, Vite)
+- `app/` — its build, served by GitHub Pages at <https://beyond-oraganization.github.io/Beyond-Hedge-Fund/app/>
+- `desktop/` — the desktop app (Electron), which opens the hosted app and keeps its data in SQLite
+- `fonts/` — the website's self-hosted fonts, which the app uses
+- `index.html` — sends the repository's Pages address on to `app/`
+
+**Publishing.** In the repository's Settings → Pages, choose *Deploy from a branch*, `main`, `/ (root)`. The app's manifest id is `/Beyond-Hedge-Fund/app/` (`pwa/build/manifest.ts`), so it must be served at that path; copies installed from the old address (`/Beyond-Website/app/`) are a different app to the browser and need installing again from the new one. In a browser the data they kept (connections, saved runs) carries over, because both addresses are on the same origin; an app installed on iPhone or iPad keeps its own storage, so the new one starts empty there.
+
+**The website's design.** The colours are the website's (`pwa/src/styles/tokens.css`, checked against `pwa/src/styles/site-tokens.css`, a copy of the tokens in the website's `beyondia.css`); when the website's palette changes, update both files. The fonts in `fonts/` are copies of the website's.
+
+## The Beyond Bot app
+
+`app/` is **Beyond Bot**, an installable web app (PWA) for the trading bot described on the Beyondia website ([techbot.html](https://beyond-oraganization.github.io/Beyond-Website/techbot.html)): <https://beyond-oraganization.github.io/Beyond-Hedge-Fund/app/>. It speaks only the bot's HTTPS command API (`beyondbot serve`) and covers every command and every view of the bot's terminal UI: session, trading, markets with charts, backtests, orders, strategies, a console, system health and the bot's account. It uses the website's colours, fonts and both themes, and shares the theme choice with it (both are on `beyond-oraganization.github.io`, so they share the browser's storage).
+
+Its source is `pwa/` (React, TypeScript, Vite). `app/` is the build, committed so GitHub Pages can serve it; CI rebuilds it and fails if it differs, so **after editing `pwa/`, rebuild and commit `app/`**:
+
+```sh
+cd pwa
+npm ci                 # once
+npm run dev:mock       # the app on http://localhost:5173 with a simulated bot (address http://127.0.0.1:8443, key printed)
+npm run build          # writes ../app
+npm test               # unit and component tests
+npx playwright install chromium && npm run test:e2e   # after a build: flows, axe in both themes, offline start, installability
+npm run lighthouse     # after a build: Lighthouse's mobile performance, at least 90
+```
+
+`npm run icons` and `npm run screenshots` regenerate the icons, splash screens and install screenshots in `pwa/public/`; `npm run record-fixtures` saves a real bot's answers (redacted) for the parser tests.** The Trading and Backtest forms are built entirely from the bot's catalog (`strategies --json`): each strategy's parameters with their ranges, its default rules, and the syntax of its rules, such as `open|close long|short on cross up|down lower|upper N`. Each word of that syntax becomes one control of a rule (a fixed word, a menu for `a|b`, a field for `N`), rules can be added, reordered and removed, and any rule can be written as text instead. So a new strategy on the bot, or a new kind of condition written the same way, needs no change in the app. The app checks ranges and rule syntax as you type; what depends on several values (a band beyond the number of bands) is checked by the bot, whose message is shown. **Position sizing** comes from the catalog too (its `sizing`): the Trading and Backtest forms offer each method the bot has (a percentage of the balance, a fixed amount, or the Kelly criterion, with how much of Kelly to use), with its range, and send it as `--sizing percent:25`, `fixed:500` or `kelly:50`. The confirmation says it in words, a running session's card shows how it sizes (for Kelly, the percent and the stored backtest it came from), and a backtest shows its sizing, its Kelly percent and the number it was stored under. A bot that refuses Kelly (no edge, or too few trades) says why, and the app shows that message. A bot from before sizing has no `sizing` in its catalog: the control is hidden and nothing is sent, so it keeps trading half of the balance. **Saved setups** keep a strategy, its parameters, its rules and its sizing under a name, on the device, for any market. A bot from before rules (no `--json`) still works: its catalog is read from `strategies`, and no rules are sent. The code: `pwa/src/strategy/` (`rules.ts` the grammar, `config.ts` the settings, the sizing and their checks, `setups.ts`), `pwa/src/components/StrategyForm.tsx` and `RuleEditor.tsx`. The app reads signals with or without the share of the balance a bot from before sizing wrote, so it works with both; update the app before the bot.
+
+**Signing in.** The fund's people sign in on the app's first screen with their login, password and 6-digit code (see the bot's README, *People and their sign-in*). The published app fills in the fund's server, `https://89-168-29-172.sslip.io` (`pwa/.env.production`, `VITE_FUND_API`): Caddy on the Oracle server serves the bot's API there with a Let's Encrypt certificate it renews itself, so no device installs a certificate. To move the fund to another address, change that file, add the address to Caddy, and add the app's origin to `BEYONDBOT_API_ORIGINS` if the app moves too.
+
+**A client's places.** A client who signs in sees three places: **Home**, **Activity** and **Account**.
+- **Home** shows what their money is worth and how it did today, this month and since joining. Deposits and withdrawals are left out of these returns. A chart of the value over time marks each deposit and withdrawal, with the same said in words under it. Below it are the latest three things that happened.
+- **Activity** lists closed trades, deposits and withdrawals, and strategies started and stopped, one card per UTC day, newest first.
+- **Account** names their account at the broker and their sign-in.
+
+Until the bot has asked the broker for the latest deposits (it does so every hour), Home says so, because a recent deposit could otherwise show as a gain. The screens read the bot's `portfolio --json` and `activity --json`. Code is in `pwa/src/features/portfolio/`. The mock bot (`pwa/mock-bot/portfolio.mjs`) gives everyone 70 days of the `demo` account in EUR, with a 2,000 deposit a week ago. Sign in as `carol` / `demo-password` with any code but 000000.
+
+**Clients (staff and the owner).** The **Clients** section lists each client with their managed accounts, the value of each account and this month's return, who signs in for them, and what is still missing ("No account linked", "Nobody signs in"). **Add a client** opens the new client's page. On a client's page, staff link and unlink the client's managed accounts and the people who sign in for them; the bot's own rules decide what's allowed, and its reason is shown when it refuses. **View as client** shows that client's Home exactly as they see it. The screens read `clients list --json`, `fund accounts --json` and `portfolio --json`, and change things with `clients add|link|unlink`. Code is in `pwa/src/features/clients/`, and the mock bot's clients in `pwa/mock-bot/clients.mjs` (one client, "Carol Example", holding `demo`). Each client's limits come with the strategy menu (plan steps 15–16).
+
+**Overview (staff and the owner).** Staff and the owner land here after signing in. It shows:
+- the money under management and today's result, per currency, with deposits left out;
+- how many clients, managed accounts and strategy sessions there are;
+- **Needs attention**: what the bot's `fund overview --json` reports, errors first, each with a link to where it's fixed (the client's page, or Trading).
+
+Code is in `pwa/src/features/overview/`. The mock bot's overview (`pwa/mock-bot/overview.mjs`) is worked out from its portfolio, clients and sessions.
+
+**Trading: budgets, and every session at once.**
+- **Budget:** the start form takes an optional **Budget** in the account's currency. Before anything opens, the app asks the bot `trading check --json`. If the start would be refused (the balance doesn't carry the budget, or Kelly has no edge), the bot's reason shows in the form. Otherwise the confirmation says what the session will trade with ("room for 2 positions at once"), and the start sends `--budget`.
+- **Every session:** a connection that holds two or more accounts (staff reach every managed one) also gets **Every session, every account**: one table with each session's account, market, budget and room, trades, and last tick, a failed one marked as an error.
+
+Code is in `pwa/src/features/trading/`.
+
+**Admin: people, managed accounts and the audit log.**
+- **People** (the owner's) lists everyone who signs in, their role and how far their sign-in got.
+  - The owner adds a person. The app makes a temporary password and shows it once, to hand over.
+  - The owner changes a role, disables and enables someone, resets a code app (a lost phone), or gives a new temporary password.
+  - Each change runs at once, without asking first, since each can be undone, and goes in the audit log.
+  - The owner can't demote or disable themselves here.
+- **Managed accounts** lists the accounts the trading process keeps open, whether each is open, and its client. The owner manages an account with its password once, or lets one go; staff see the list.
+- **Audit log** (staff and the owner) shows every change, refused ones and sign-ins, newest first, with passwords as `***`. It can be filtered by person.
+
+Code is in `pwa/src/features/admin/`. The mock bot adds people commands, `fund manage|unmanage` and its own audit log (`pwa/mock-bot/audit.mjs`).
+
+**The strategy menu: clients choose, within limits.**
+- **A client's Strategies** shows what trades for them: each strategy's budget, its result so far and its trades. **Stop** asks in place and says that open positions stay open until the fund closes them. **Add a strategy** lists only the setups the fund allows them, each with its name, risk and description. A client chooses one and types a budget: the app shows the largest their limits allow on the account, and asks the bot to check the budget. Start is offered only once the bot says it would start.
+- **The owner's Strategy menu** (Admin) lists every setup. The owner adds one from the strategy form, with the name, description and risk clients read; changes a setup's words; or withdraws one. **Offer to clients**, on a saved backtest run, opens the form with that backtest's setup filled in.
+- **A client's page** gets **Limits**: which setups they may start, the largest budget (an amount, a % of the balance, or both), sessions at once, and Live.
+
+The screens read the bot's `menu list`, `clients limits` and `session strategies`, and start with `trading start|check --setup` (bot PRs #24 and #25). Code is in `pwa/src/features/menu/`. The mock bot (`pwa/mock-bot/menu.mjs`) offers two setups to Carol's client, with a largest budget of 40% of the balance and two sessions at once.
+
+**Connecting a bot with its API key** (the owner, under *Advanced* on the sign-in screen). On the bot's server, allow the app's origin and restart the bot:
+
+```sh
+echo 'BEYONDBOT_API_ORIGINS=https://beyond-oraganization.github.io' | sudo tee -a /etc/beyondbot.env
+sudo systemctl restart beyondbot
+```
+
+Then, on each device: trust the bot's certificate once (the bot's README, "Trusting the certificate"), make sure the firewall lets the device reach port 8443, and enter the bot's address and API key in the app (Connect). **Remember me on this device** keeps the key with a key of this device, so the app opens straight to the bot without a passphrase; without it the key is kept under a passphrase (asked when the app starts or after it locks) or not at all. **Lock the bot** (More, or the lock button in the header) locks a remembered bot under a passphrase you choose; unlocking it with that passphrase remembers it again. Connections can switch an open bot to remember me.
+
+**Backtests on the device.** The Backtest screen runs the bot's own backtest engine (its Core, compiled to WebAssembly, in `pwa/public/engine/`, published from the bot with `npm run engine`) in Web Workers, on the device's own copy of the bot's candles; the bot only hands out the candles and, for Kelly sizing, its Kelly basis. Its **Monte Carlo** makes 100 to 1,000 alternative price histories of the same market and dates and backtests the strategy again on each, in up to six workers at once (fewer on a phone or where memory is short): by the **bootstrap** (real candle moves glued in random blocks, the default) or by **Brownian motion** (a random walk with the real drift and volatility). It shows every scenario's balance over time with the average and the real history's, where they ended, the share that ended above the start, where the real history ranks among them, and 20 of the price paths around the real price. 200 scenarios of 45,000 hourly candles take about 10 s on an Apple Silicon Mac. Code: `pwa/src/engine/` (the worker and its pool), `pwa/src/backtest/` (runs, saved runs), `pwa/src/components/backtest/`.
+
+**Storage, and the desktop app.** The app keeps its data behind one small port (`pwa/src/storage/local-store.ts`): IndexedDB in a browser, where the last 50 runs are kept with their Monte Carlo's summaries; and a SQLite file in the **desktop app** (`desktop/`, Electron), which keeps every run with every scenario, the candle copies and the settings in `~/Library/Application Support/Beyond Bot/beyond-bot.sqlite`. The desktop app opens the hosted app, so it updates whenever the app is published; `desktop/README.md` says how to build and open it.
+
+**Trading accounts.** Connecting gives the app the bot's database (markets, candles, strategies, backtests) but no trading account: the bot lets a device act on an account only after it signs in to that account with its password, even one the bot is already trading. **Trading accounts** (the Account screen) signs in to accounts, creates them (cTrader or Bybit, Demo or Live; a Live one asks again, and so does every strategy started on it), switches between them, and signs out (strategies keep trading) or stops them. A device can hold several accounts at once; the header shows the one commands act on. Several strategy sessions can trade one market (two variants of one strategy on EURPLN 1h, say): the Trading screen's **Session name** names each (left empty, the bot names it after the strategy: sample, sample 2, …), each closes only its own positions, and Stop stops one session by its name. The first login answers with a connection token (`X-BeyondBot-Connection`), which the app keeps for that bot and sends with every command; when the bot says it expired (403, or after a restart of the bot) the app forgets it and asks for a sign-in. Code: `pwa/src/api/client.ts` (the headers), `pwa/src/api/bot.ts` (the token), `pwa/src/screens/Account.tsx`. The mock bot (`npm run dev:mock`) behaves the same: sign in as `demo` / `demo-password`.
+
+**Installing it.** On Android, Windows, macOS, Linux and ChromeOS, Chrome or Edge offer **Install** (the app's own button, or the address bar). On iPhone and iPad: Safari → Share → **Add to Home Screen**; install it *before* connecting, because the installed app keeps its own storage apart from Safari. On a Mac, Safari → File → **Add to Dock**. Firefox on computers cannot install web apps; the app says so and suggests another browser. Once installed it has its own icon and window, starts offline with the last data it saw, and offers each new version with a Reload button: it looks for one each time it comes back to the screen and every hour while open. Settings shows which version it runs (1.1.0 brings position sizing).

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { isTheApp, storeHandlers } from '../src/bridge.js'
 
-const APP = 'https://beyond-oraganization.github.io/Beyond-Website/app/'
+const APP = 'https://beyond-oraganization.github.io/Beyond-Hedge-Fund/app/'
 
 /** A database that remembers in memory, standing in for the SQLite one. */
 function memory() {
@@ -23,7 +23,7 @@ describe('which pages are the app', () => {
   })
 
   it('is not another site, nor another site of the same GitHub Pages origin, nor a folder that only starts alike', () => {
-    for (const page of ['https://example.com/Beyond-Website/app/', 'https://beyond-oraganization.github.io/other/', 'https://beyond-oraganization.github.io/Beyond-Website/app-copy/', 'http://beyond-oraganization.github.io/Beyond-Website/app/', 'file:///Beyond-Website/app/', 'not a url', ''])
+    for (const page of ['https://example.com/Beyond-Hedge-Fund/app/', 'https://beyond-oraganization.github.io/other/', 'https://beyond-oraganization.github.io/Beyond-Hedge-Fund/app-copy/', 'http://beyond-oraganization.github.io/Beyond-Hedge-Fund/app/', 'file:///Beyond-Hedge-Fund/app/', 'not a url', ''])
       assert.equal(isTheApp(page, APP), false, page)
   })
 })

@@ -1,7 +1,7 @@
 # Beyond Bot for the desktop
 
 The Beyond Bot app in its own window, with a real database on the computer. It opens the hosted app
-(<https://beyond-oraganization.github.io/Beyond-Website/app/>), so it updates whenever the site does. What
+(<https://beyond-oraganization.github.io/Beyond-Hedge-Fund/app/>), so it updates whenever the app is published. What
 the app would keep in the browser's storage goes into one SQLite file instead:
 
 - every backtest you run, not only the last 50;
