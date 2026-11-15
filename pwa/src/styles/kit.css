@@ -153,3 +153,78 @@
 /* the owner's Admin pages (src/features/admin) */
 .k-input-small{min-height:36px;width:auto;padding:0 var(--k-sp-2);font-size:var(--k-fs-s)}
 .k-cell-stack{display:grid;gap:2px;justify-items:start}
+
+/* ---------- the working screens in the kit's look (plan step 14b) ----------
+   Every screen inside the app's main area draws its sections, headings, buttons, tables, callouts, pills and tiles with
+   the website's pieces (base.css, app.css). Here they take the kit's look, in one place: sections become plain areas
+   on the page (no yellow or navy bands, no 4 px rules between them), headings are sentence case at the kit's sizes,
+   buttons are sentence case with the hard shadow only on the solid one, tables and tiles sit on paper with quiet rules,
+   callouts look like the kit's banners and pills like its badges. Outside .main (the header, sheets) nothing changes. */
+.main .sec,.main .sec.alt,.main .sec.dark{
+  --bg:var(--c-bg);--fg:var(--c-fg);--mute:var(--grey-8);--line:var(--grey-3);--lead:var(--grey-8);--line2:var(--c-fg);--gain:var(--gain-5);--loss:var(--loss-5);
+  --sy:clamp(16px,2.4cqw,28px);background:transparent;color:var(--c-fg);border-top:0}
+.main .sec+.sec:not(.sec-head){padding-top:0}
+.main .title{max-width:none;font:400 var(--k-fs-title)/1.1 var(--f-d);letter-spacing:-.01em;text-transform:none}
+.main .h2{font:700 var(--k-fs-xl)/1.2 var(--f-r);letter-spacing:0;text-transform:none}
+.main .h3{font:700 var(--k-fs-l)/1.25 var(--f-r);letter-spacing:0;text-transform:none}
+.main .kicker{display:block;margin-bottom:var(--k-sp-2);padding:0;background:none;color:var(--grey-7);font:700 var(--k-fs-xs)/1.4 var(--f-t);letter-spacing:.12em}
+.main .lead{max-width:44em;font:400 var(--k-fs-m)/1.5 var(--f-r);color:var(--grey-8)}
+.main .label{color:var(--grey-8)}
+.main .btn{min-height:var(--k-ctl);padding:0 var(--k-sp-4);border-width:var(--k-rule);font:600 15px/1.2 var(--f-r);letter-spacing:0;text-transform:none}
+.main .btn-compact{min-height:36px;padding:0 var(--k-sp-3);font-size:var(--k-fs-s)}
+.main .btn:hover{transform:none;box-shadow:none}
+.main .btn-solid{box-shadow:var(--k-shadow)}
+.main .btn-solid:hover{box-shadow:var(--k-shadow);background:var(--grey-8)}
+.main .btn-ghost{background:var(--paper)}
+.main .btn-ghost:hover{background:var(--grey-1)}
+.main .btn-danger{background:var(--loss-5);border-color:var(--loss-5);color:#fff}
+.main .btn-danger:hover{background:var(--loss-4,var(--loss-5))}
+.main .tbl-wrap{border:var(--k-rule) solid var(--c-fg);background:var(--paper)}
+.main .tbl{font:500 var(--k-fs-s)/1.4 var(--f-r)}
+.main .tbl th{background:var(--grey-1);color:var(--grey-8);border-bottom:var(--k-rule) solid var(--c-fg)}
+.main .tbl td{border-top:1px solid var(--grey-3)}
+.main .tbl .r,.main .tbl .mono{font-family:var(--f-t)}
+.main .tbl tbody tr:hover{background:var(--grey-1)}
+.main .callout{border:var(--k-rule) solid var(--grey-5);border-left-width:8px;background:var(--grey-1);color:var(--c-fg)}
+.main .callout.warn{border-color:var(--warn-3);border-left-color:var(--warn-5);background:var(--warn-1)}
+.main .callout.error{border-color:var(--loss-3);border-left-color:var(--loss-5);background:var(--loss-1)}
+.main .callout>.label{color:var(--grey-8)}
+.main .callout>.label::before{display:none}
+.main .pill{border:1px solid var(--grey-4);background:var(--grey-1);color:var(--c-fg);font:600 var(--k-fs-s)/1.4 var(--f-r);letter-spacing:0;text-transform:none}
+.main .pill.solid{border-color:var(--c-fg);background:var(--c-fg);color:var(--paper)}
+.main .pill.accent{border-color:var(--loss-3);background:var(--loss-1);color:var(--loss-5)}
+.main .tile,.main .box{border:var(--k-rule) solid var(--c-fg);background:var(--paper);box-shadow:none}
+.main .tile:hover{transform:none;box-shadow:none}
+.main .rows{border-bottom-width:var(--k-rule)}
+.main .rows>li{border-top-width:var(--k-rule)}
+.main .checks li{border-top-width:1px}
+.main .checks li:last-child{border-bottom-width:1px}
+/* forms, choices, empty states, rules and breadcrumbs of the working screens */
+.main .field>label,.main .field>.field-label,.main fieldset.field>legend{font:600 var(--k-fs-s)/1.4 var(--f-r);letter-spacing:0;text-transform:none;color:var(--c-fg)}
+.main .field input,.main .field textarea,.main .field select{min-height:var(--k-ctl);padding:8px var(--k-sp-3);border:var(--k-rule) solid var(--c-fg);background-color:var(--paper);font-size:var(--k-fs-m);box-shadow:none}
+.main .field input:focus,.main .field textarea:focus,.main .field select:focus{outline:3px solid var(--c-fg);outline-offset:2px;background-color:var(--paper);box-shadow:none}
+.main .field [aria-invalid="true"],.main .field [aria-invalid="true"]:focus{border-color:var(--loss-5);box-shadow:none}
+.main .field-error::before,.main .form-status.is-error::before{background:var(--loss-5)}
+.main .field-error{color:var(--loss-5)}
+.main .seg span{min-height:var(--k-ctl);border-width:var(--k-rule);background:var(--paper);box-shadow:none;font:600 var(--k-fs-s)/1.2 var(--f-r);letter-spacing:0;text-transform:none}
+.main .seg label:hover span{background:var(--grey-1)}
+.main .seg input:checked+span{background:var(--c-fg);color:var(--paper);box-shadow:none}
+.main .empty{border:var(--k-rule) dashed var(--grey-5);background:var(--paper)}
+.main .empty .h3{font:700 var(--k-fs-m)/1.3 var(--f-r)}
+.main .rule{border:var(--k-rule) solid var(--c-fg);background:var(--paper)}
+.main .rules-field .rule-parts select,.main .rules-field .rule-parts input,.main .rules-field .rule-text{border-width:var(--k-rule);background-color:var(--paper);box-shadow:none}
+.main .rule-word{font:600 var(--k-fs-s)/1 var(--f-r);letter-spacing:0;text-transform:none}
+.main .crumbs{font:500 var(--k-fs-s)/1.4 var(--f-r);letter-spacing:0;text-transform:none;color:var(--grey-7)}
+.main .crumbs a{text-decoration:underline;text-underline-offset:3px}
+.main .crumbs .here{padding:0;background:none;color:var(--c-fg);font-weight:600}
+.main .h2::first-letter{text-transform:uppercase}
+/* cards (phone tables, the trading accounts) on paper */
+.main .cards{border-bottom:0;gap:var(--k-sp-3)}
+.main .cards>li{padding:var(--k-sp-3) var(--k-sp-4);border:var(--k-rule) solid var(--c-fg);background:var(--paper)}
+.main .cards .card-title{font:700 var(--k-fs-l)/1.25 var(--f-r);text-transform:none}
+.main .cards .kv .k{font:600 var(--k-fs-xs)/1.3 var(--f-r);letter-spacing:0;text-transform:none;color:var(--grey-7)}
+/* the website's route ruler is decoration for its pages: not on working screens */
+.main .sec.ruled{--pl:var(--px)}
+.main .sec.ruled .rl,.main .sec.ruled .rt,.main .sec.ruled .rn{display:none}
+.main .more{font:600 var(--k-fs-s)/1.4 var(--f-r);letter-spacing:0;text-transform:none}
+.main a.tile:hover,.main a.tile:focus-visible{background:var(--grey-1);transform:none;box-shadow:none}

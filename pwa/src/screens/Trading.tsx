@@ -129,7 +129,7 @@ function TickLine({ entry }: { entry: TickEntry }) {
     <li>
       <time dateTime={tick.time}>{fmtClock(parseIso(tick.time))}</time>
       <span>
-        <strong>{marketLabel(tick.market)}</strong> │ {parts.join(' │ ')} {tick.trade ? <Pill tone="solid">trade</Pill> : null}
+        <strong>{marketLabel(tick.market)}</strong> │ {parts.join(' │ ')} {tick.trade ? <Pill tone="solid">Trade</Pill> : null}
       </span>
     </li>
   )
