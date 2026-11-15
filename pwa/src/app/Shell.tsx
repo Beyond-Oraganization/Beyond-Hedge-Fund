@@ -62,10 +62,11 @@ function Header() {
   const ui = useUi()
   const { connection, ready } = useBot()
   const [locking, setLocking] = useState(false)
+  const client = connection?.person?.role === 'client'
   return (
     <header className="hdr">
       <div className="hdr-in">
-        <Link to="/" className="brand" aria-label="Beyond Bot, Account">
+        <Link to={client ? '/home' : '/'} className="brand" aria-label={client ? 'Beyond Bot, Home' : 'Beyond Bot, Account'}>
           <BotMark size={40} />
           <span>BEYOND BOT</span>
         </Link>

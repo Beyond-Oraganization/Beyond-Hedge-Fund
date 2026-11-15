@@ -1,17 +1,46 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { explain, runCommand } from '../api/client.ts'
 import { useBot } from '../api/bot.ts'
 import { Section } from '../components/ui.tsx'
 import { Banner, Button, Card, PageHeader } from '../shared/ui/index.ts'
 import { useConnections } from '../state/connections.ts'
+import { usePortfolio } from '../features/portfolio/portfolio.ts'
+
+/** A client's accounts at the broker, and where their money goes in and out. */
+function AtTheBroker() {
+  const portfolio = usePortfolio()
+  const accounts = portfolio.data?.parsed.ok ? portfolio.data.parsed.value : null
+  return (
+    <Card title={accounts && accounts.length > 1 ? 'Your accounts at the broker' : 'Your account at the broker'}>
+      {accounts === null ? (
+        <p className="k-hint">{portfolio.error ? 'Your accounts could not be loaded just now.' : 'Loading…'}</p>
+      ) : accounts.length ? (
+        <dl className="k-facts">
+          {accounts.map((account) => (
+            <Fragment key={account.login}>
+              <dt>Account</dt>
+              <dd>
+                {account.login}
+                {account.currency ? `, in ${account.currency}` : ''}
+              </dd>
+            </Fragment>
+          ))}
+        </dl>
+      ) : (
+        <p>No account is linked to you yet. The fund links it for you.</p>
+      )}
+      <p className="k-hint">Deposits and withdrawals happen at the broker. They show in your activity within the hour. To change your password or your code app, ask the fund.</p>
+    </Card>
+  )
+}
 
 const ROLE: Record<string, string> = { owner: 'The fund’s owner', staff: 'Staff of the fund', client: 'Client of the fund' }
 
 /**
  * A person's own sign-in: who they are signed in as, where, and signing out of this device or of every one. Signing out
- * forgets everything this device kept for that sign-in. For a client, this is their account page until their portfolio
- * screens arrive.
+ * forgets everything this device kept for that sign-in. For a client, this is their Account place: their account at the
+ * broker, and their sign-in.
  */
 export default function Me() {
   const navigate = useNavigate()
@@ -50,11 +79,7 @@ export default function Me() {
       <div className="k-demo" style={{ maxWidth: 720 }}>
         <PageHeader title={person.role === 'client' ? 'Your account' : 'Your sign-in'} meta={ROLE[person.role]} />
         {error ? <Banner tone="error" title={error} /> : null}
-        {person.role === 'client' ? (
-          <Banner tone="info" title="Your portfolio comes here soon">
-            The fund is preparing the pages that show what your money is worth and what trades for you.
-          </Banner>
-        ) : null}
+        {person.role === 'client' ? <AtTheBroker /> : null}
         <Card title="Signed in as">
           <dl className="k-facts">
             <dt>Name</dt>
