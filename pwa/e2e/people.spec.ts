@@ -91,6 +91,29 @@ test('a client starts at Home, sees their money and what happened, and stays in 
   await expect(page).toHaveURL(/#\/home$/)
 })
 
+test('staff open a client, see what the client sees, and link and unlink their account', async ({ page }) => {
+  await signIn(page, 'sam')
+  await enterCode(page)
+  await expect(page.getByText('Equity', { exact: true })).toBeVisible()
+
+  await shown(page.getByRole('link', { name: 'Clients', exact: true })).click()
+  await expect(page).toHaveURL(/#\/clients$/)
+  await shown(page.getByRole('link', { name: 'Carol Example' })).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Carol Example' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'What the client sees' }).getByText(/^[\d,]+\.\d\d EUR$/)).toBeVisible()
+
+  const accounts = page.getByRole('region', { name: 'Accounts' })
+  await accounts.getByRole('button', { name: 'Unlink demo' }).click()
+  await expect(accounts.getByText('No account linked yet.')).toBeVisible()
+  await accounts.getByLabel('Managed account').selectOption('demo')
+  await accounts.getByRole('button', { name: 'Link account' }).click()
+  await expect(accounts.getByRole('button', { name: 'Unlink demo' })).toBeVisible()
+
+  await page.getByRole('link', { name: 'View as client' }).click()
+  await expect(page.getByText('You are seeing what Carol Example sees')).toBeVisible()
+  await expect(page.getByText('Your portfolio')).toBeVisible()
+})
+
 test('the API key stays for the owner, under Advanced', async ({ page }) => {
   await page.goto('#/signin')
   await page.getByText('Advanced').click()

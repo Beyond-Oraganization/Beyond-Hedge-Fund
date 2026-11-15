@@ -138,3 +138,8 @@
 .k-feed-text{font:400 var(--k-fs-m)/1.5 var(--f-r);overflow-wrap:anywhere}
 .k-feed-account{color:var(--grey-7);font-size:var(--k-fs-s)}
 .k-feed-amount{font:600 var(--k-fs-m)/1.5 var(--f-t);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* staff's clients (src/features/clients) */
+.k-grow{flex:1 1 220px;min-width:0}
+.k-row:has(.k-grow){align-items:end}
+.k-linked{grid-template-columns:minmax(0,1fr) auto!important;align-items:center!important}
