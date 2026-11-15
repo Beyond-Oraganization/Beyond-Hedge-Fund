@@ -18,6 +18,7 @@ import { createBot } from './bot.mjs'
 import { createPeople } from './people.mjs'
 import { createPortfolio } from './portfolio.mjs'
 import { createClients } from './clients.mjs'
+import { overview } from './overview.mjs'
 
 export const DEFAULT_KEY = 'mock-bot-key-0123456789abcdef0123456789abcdef'
 const MAX_BODY = 4096
@@ -182,6 +183,8 @@ export function startServer({ port = 8443, key = DEFAULT_KEY, origins = '*', con
 
       // The fund's clients and managed accounts.
       if (args[0] === 'clients' || (args[0] === 'fund' && args[1] === 'accounts')) return reply(clients.run(args))
+      if (args[0] === 'fund' && args[1] === 'overview')
+        return reply(overview(args, { portfolio: createPortfolio(() => bot.now()), clients, sessions: () => [...bot.state.sessions.values()], now: () => bot.now() }))
       // The fund's portfolios, on the bot's clock (so /__mock/advance moves them too).
       if (args[0] === 'portfolio' || args[0] === 'activity') {
         const fund = createPortfolio(() => bot.now())

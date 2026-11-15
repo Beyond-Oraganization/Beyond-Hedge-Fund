@@ -26,7 +26,8 @@ const Me = lazy(() => import('./screens/Me.tsx'))
 // A client's places (docs/fund-app-redesign-plan.md, section 7).
 const Home = lazy(() => import('./features/portfolio/Home.tsx'))
 const Activity = lazy(() => import('./features/portfolio/Activity.tsx'))
-// Staff's clients (plan, section 7).
+// Staff's Overview and clients (plan, section 7).
+const Overview = lazy(() => import('./features/overview/Overview.tsx'))
 const ClientsList = lazy(() => import('./features/clients/ClientsList.tsx'))
 const ClientPage = lazy(() => import('./features/clients/ClientPage.tsx'))
 const ViewAsClient = lazy(() => import('./features/clients/ViewAsClient.tsx'))
@@ -71,6 +72,7 @@ const router = createHashRouter([
       { path: 'me', element: page(<Me />) },
       { path: 'home', element: page(<Home />) },
       { path: 'activity', element: page(<Activity />) },
+      { path: 'overview', element: page(<Overview />) },
       { path: 'clients', element: page(<ClientsList />) },
       { path: 'clients/:id', element: page(<ClientPage />) },
       { path: 'clients/:id/view', element: page(<ViewAsClient />) },
