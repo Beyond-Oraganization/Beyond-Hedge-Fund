@@ -26,6 +26,10 @@ const Me = lazy(() => import('./screens/Me.tsx'))
 // A client's places (docs/fund-app-redesign-plan.md, section 7).
 const Home = lazy(() => import('./features/portfolio/Home.tsx'))
 const Activity = lazy(() => import('./features/portfolio/Activity.tsx'))
+// Staff's clients (plan, section 7).
+const ClientsList = lazy(() => import('./features/clients/ClientsList.tsx'))
+const ClientPage = lazy(() => import('./features/clients/ClientPage.tsx'))
+const ViewAsClient = lazy(() => import('./features/clients/ViewAsClient.tsx'))
 // The design kit's page: development builds only; a production build has neither the route nor its chunk.
 const DesignPage = import.meta.env.DEV ? lazy(() => import('./shared/ui/DesignPage.tsx')) : null
 
@@ -67,6 +71,9 @@ const router = createHashRouter([
       { path: 'me', element: page(<Me />) },
       { path: 'home', element: page(<Home />) },
       { path: 'activity', element: page(<Activity />) },
+      { path: 'clients', element: page(<ClientsList />) },
+      { path: 'clients/:id', element: page(<ClientPage />) },
+      { path: 'clients/:id/view', element: page(<ViewAsClient />) },
       ...(DesignPage ? [{ path: 'design', element: page(<DesignPage />) }] : []),
       { path: '*', element: <NotFound /> },
     ],

@@ -39,6 +39,8 @@ npm run lighthouse     # after a build: Lighthouse's mobile performance, at leas
 
 Until the bot has asked the broker for the latest deposits (it does so every hour), Home says so, because a recent deposit could otherwise show as a gain. The screens read the bot's `portfolio --json` and `activity --json`. Code is in `pwa/src/features/portfolio/`. The mock bot (`pwa/mock-bot/portfolio.mjs`) gives everyone 70 days of the `demo` account in EUR, with a 2,000 deposit a week ago. Sign in as `carol` / `demo-password` with any code but 000000.
 
+**Clients (staff and the owner).** The **Clients** section lists each client with their managed accounts, the value of each account and this month's return, who signs in for them, and what is still missing ("No account linked", "Nobody signs in"). **Add a client** opens the new client's page. On a client's page, staff link and unlink the client's managed accounts and the people who sign in for them; the bot's own rules decide what's allowed, and its reason is shown when it refuses. **View as client** shows that client's Home exactly as they see it. The screens read `clients list --json`, `fund accounts --json` and `portfolio --json`, and change things with `clients add|link|unlink`. Code is in `pwa/src/features/clients/`, and the mock bot's clients in `pwa/mock-bot/clients.mjs` (one client, "Carol Example", holding `demo`). Each client's limits come with the strategy menu (plan steps 15–16).
+
 **Connecting a bot with its API key** (the owner, under *Advanced* on the sign-in screen). On the bot's server, allow the app's origin and restart the bot:
 
 ```sh
