@@ -103,3 +103,8 @@
 .k-swatch>span:first-child{height:40px;border:1px solid var(--grey-4)}
 .k-demo{display:grid;gap:var(--k-sp-5)}
 .k-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--k-sp-3)}
+
+/* the compact screen head (ScreenHead), on the page's background */
+.sec.sec-head{--sy:clamp(20px,3cqw,32px)}
+.k-head-text{display:grid;gap:6px;min-width:0;max-width:52em}
+.k-lead{margin:0;max-width:44em;font:400 var(--k-fs-m)/1.5 var(--f-r);color:var(--grey-8)}

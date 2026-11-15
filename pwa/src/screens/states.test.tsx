@@ -134,6 +134,15 @@ describe('Session', () => {
     expect(screen.getByRole('heading', { name: 'Open positions' })).toBeInTheDocument()
   })
 
+  it('says when it was updated, and keeps the bot’s process figures behind a closed System', async () => {
+    show(<Session />)
+    expect(await screen.findByText(/^Updated \d{2}:\d{2}:\d{2} UTC/)).toBeInTheDocument()
+    expect(screen.queryByText(/session --json/)?.closest('details')).not.toBeNull()
+    const system = screen.getByText('System', { selector: 'summary *, summary' }).closest('details')!
+    expect(system).not.toHaveAttribute('open')
+    expect(system).toHaveTextContent(/working set/)
+  })
+
   it('says this device has no trading account (exit code 3) and offers to add one', async () => {
     overrides.push(['session', failed(3, 'You need to log in first.', "Run 'login' (or 'register' to create an account).")])
     show(<Session />)

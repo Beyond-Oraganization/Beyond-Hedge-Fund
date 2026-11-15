@@ -162,10 +162,19 @@ export function Breadcrumbs({ trail }: { trail: { label: string; to?: string }[]
   )
 }
 
-/** The command behind the data on screen, and how long the bot took: "market list · 12 ms · 14:03:21". */
+/**
+ * The command behind the data on screen, and how long the bot took ("market list · 12 ms · 14:03:21"), behind a
+ * closed Details: the owner's tool for checking the bot, not something to read every time.
+ */
 export function Footnote({ parts }: { parts: (string | null | undefined | false)[] }) {
   const shown = parts.filter(Boolean)
-  return shown.length ? <p className="foot">{shown.join(' · ')}</p> : null
+  if (!shown.length) return null
+  return (
+    <details className="foot">
+      <summary>Details</summary>
+      <p>{shown.join(' · ')}</p>
+    </details>
+  )
 }
 
 export const Skeleton = ({ lines = 3 }: { lines?: number }) => (

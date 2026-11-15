@@ -223,12 +223,8 @@ test('remember me opens the bot after a reload; locking it asks for the chosen p
   await connected(page)
   await page.reload()
   await expect(page.getByText('Equity', { exact: true })).toBeVisible()
-  const lockButton = page.getByRole('button', { name: 'Lock the bot' })
-  if (await lockButton.filter({ visible: true }).count()) await lockButton.filter({ visible: true }).first().click()
-  else {
-    await page.getByRole('button', { name: 'More' }).click()
-    await page.getByRole('dialog').getByRole('button', { name: 'Lock the bot' }).click()
-  }
+  // The header's lock button, on a phone as on a computer.
+  await page.getByRole('banner').getByRole('button', { name: 'Lock the bot' }).click()
   await page.getByLabel('Passphrase', { exact: true }).fill('correct horse battery')
   await page.getByLabel('Passphrase again').fill('correct horse battery')
   await page.getByRole('dialog').getByRole('button', { name: 'Lock the bot' }).click()
@@ -290,6 +286,31 @@ test('the two-markets bot bug is explained, with the broker’s positions instea
   await page.goto('#/')
   await page.reload()
   await expect(page.getByText('A known bot bug').first()).toBeVisible()
+})
+
+test('the navigation reaches every section: a sidebar on a computer, sections and tabs on a phone', async ({ page, isMobile }) => {
+  await connected(page)
+  await page.goto('#/')
+  if (isMobile) {
+    const sections = page.getByRole('navigation', { name: 'Sections' })
+    await expect(sections.getByRole('link', { name: 'Trading' })).toHaveAttribute('aria-current', 'page')
+    await sections.getByRole('link', { name: 'Research' }).click()
+    await expect(page).toHaveURL(/#\/markets$/)
+    await page.getByRole('navigation', { name: 'Research screens' }).getByRole('link', { name: 'Backtest' }).click()
+    await expect(page).toHaveURL(/#\/backtest$/)
+    await expect(sections.getByRole('link', { name: 'Research' })).toHaveAttribute('aria-current', 'page')
+    await sections.getByRole('link', { name: 'Admin' }).click()
+    await page.getByRole('navigation', { name: 'Admin screens' }).getByRole('link', { name: 'System' }).click()
+  } else {
+    const side = page.getByRole('navigation', { name: 'Main navigation' })
+    await expect(side.getByRole('link', { name: 'Account', exact: true })).toHaveAttribute('aria-current', 'page')
+    await side.getByRole('link', { name: 'Backtest' }).click()
+    await expect(page).toHaveURL(/#\/backtest$/)
+    await expect(side.getByRole('link', { name: 'Backtest' })).toHaveAttribute('aria-current', 'page')
+    await side.getByRole('link', { name: 'System' }).click()
+  }
+  await expect(page).toHaveURL(/#\/system$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Health.' })).toBeVisible()
 })
 
 for (const theme of ['classic', 'light'] as const) {
