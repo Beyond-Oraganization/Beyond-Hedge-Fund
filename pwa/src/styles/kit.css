@@ -228,3 +228,16 @@
 .main .sec.ruled .rl,.main .sec.ruled .rt,.main .sec.ruled .rn{display:none}
 .main .more{font:600 var(--k-fs-s)/1.4 var(--f-r);letter-spacing:0;text-transform:none}
 .main a.tile:hover,.main a.tile:focus-visible{background:var(--grey-1);transform:none;box-shadow:none}
+
+/* a client's Strategies (src/features/menu) */
+.k-strategies{display:grid;gap:var(--k-sp-3);margin:0;padding:0;list-style:none}
+.k-strategy{display:grid;gap:var(--k-sp-2);padding:var(--k-sp-3) 0;border-top:1px solid var(--grey-3)}
+.k-strategy:first-child{border-top:0;padding-top:0}
+.k-strategy p{margin:0}
+.k-strategy-head{flex-wrap:nowrap}
+.k-grow-text{flex:1 1 auto;min-width:0}
+.k-confirm{display:grid;gap:var(--k-sp-3);padding:var(--k-sp-3) var(--k-sp-4);border:var(--k-rule) solid var(--loss-3);border-left-width:8px;background:var(--loss-1)}
+.k-add{padding:var(--k-sp-3) var(--k-sp-4);border:1px solid var(--grey-4);background:var(--grey-1)}
+.k-textarea{min-height:88px;padding:var(--k-sp-2) var(--k-sp-3);resize:vertical;font:400 var(--k-fs-m)/1.5 var(--f-r)}
+.k-fieldset{display:grid;gap:var(--k-sp-1);margin:0;padding:0;border:0}
+.k-fieldset>legend{margin-bottom:var(--k-sp-2);padding:0;font:600 var(--k-fs-s)/1.4 var(--f-r)}
