@@ -86,6 +86,9 @@ export function createPeople() {
     /** The accounts a person's connection holds: the mock's one account, for staff, the owner and carol (her client's). */
     accountsOf: () => ['demo'],
 
+    /** A person's role, or null when there is no such person (for the clients' rules). */
+    roleOf: (login) => people.find((p) => p.login === login?.toLowerCase())?.role ?? null,
+
     signin(args) {
       const login = args[1]?.toLowerCase()
       const password = option(args, '--password')
