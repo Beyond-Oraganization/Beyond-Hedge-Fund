@@ -1,13 +1,21 @@
 import type { IconName } from '../components/Icon.tsx'
+import type { PersonRole } from '../state/connections.ts'
 
 /**
- * Who is using the app (docs/fund-app-redesign-plan.md, section 6, in Beyond-Bot-Bybit). Until the bot has
- * people with roles, whoever holds the API key is the owner. The client's own places come with their screens.
+ * Who is using the app (docs/fund-app-redesign-plan.md, section 6, in Beyond-Bot-Bybit): a person's role from their
+ * sign-in, or the owner for whoever connects with the API key. The bot refuses what a role may not run; this only
+ * leaves it out.
  */
-export type Role = 'owner' | 'staff'
+export type Role = PersonRole
 
 export type NavItem = { to: string; label: string; end?: boolean }
-export type NavSection = { id: 'trading' | 'research' | 'admin'; label: string; icon: IconName; items: NavItem[] }
+export type NavSection = { id: 'trading' | 'research' | 'admin' | 'account'; label: string; icon: IconName; items: NavItem[] }
+
+/** A person's own sign-in: who they are, and signing out. */
+const YOUR_SIGN_IN: NavItem = { to: '/me', label: 'Your sign-in' }
+
+/** A client's places. Their portfolio, strategies and activity come with their screens (steps 10 and 16 of the plan). */
+const CLIENT: NavSection[] = [{ id: 'account', label: 'Account', icon: 'account', items: [{ to: '/me', label: 'Your account' }] }]
 
 const TRADING: NavSection = {
   id: 'trading',
@@ -40,10 +48,14 @@ const ADMIN_ITEMS: (NavItem & { ownerOnly?: boolean })[] = [
   { to: '/install', label: 'Install the app' },
 ]
 
-/** The sections a role sees, in order. The server refuses what a role may not do; this only leaves it out. */
-export function sectionsFor(role: Role): NavSection[] {
+/**
+ * The sections a role sees, in order. `person` is a person's own sign-in (not the API key), which adds their sign-in page
+ * to Admin.
+ */
+export function sectionsFor(role: Role, { person = false } = {}): NavSection[] {
+  if (role === 'client') return CLIENT
   const admin = ADMIN_ITEMS.filter((item) => role === 'owner' || !item.ownerOnly).map(({ to, label }) => ({ to, label }))
-  return [TRADING, RESEARCH, { id: 'admin', label: 'Admin', icon: 'settings', items: admin }]
+  return [TRADING, RESEARCH, { id: 'admin', label: 'Admin', icon: 'settings', items: person ? [YOUR_SIGN_IN, ...admin] : admin }]
 }
 
 const matches = (item: NavItem, path: string) => (item.end ? path === item.to : path === item.to || path.startsWith(`${item.to}/`))

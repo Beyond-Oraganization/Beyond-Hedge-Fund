@@ -21,6 +21,8 @@ const Account = lazy(() => import('./screens/Account.tsx'))
 const Connect = lazy(() => import('./screens/Connect.tsx'))
 const Connections = lazy(() => import('./screens/Connections.tsx'))
 const Install = lazy(() => import('./screens/Install.tsx'))
+const SignIn = lazy(() => import('./screens/SignIn.tsx'))
+const Me = lazy(() => import('./screens/Me.tsx'))
 // The design kit's page: development builds only; a production build has neither the route nor its chunk.
 const DesignPage = import.meta.env.DEV ? lazy(() => import('./shared/ui/DesignPage.tsx')) : null
 
@@ -58,6 +60,8 @@ const router = createHashRouter([
       { path: 'connect', element: page(<Connect />) },
       { path: 'connections', element: page(<Connections />) },
       { path: 'install', element: page(<Install />) },
+      { path: 'signin', element: page(<SignIn />) },
+      { path: 'me', element: page(<Me />) },
       ...(DesignPage ? [{ path: 'design', element: page(<DesignPage />) }] : []),
       { path: '*', element: <NotFound /> },
     ],

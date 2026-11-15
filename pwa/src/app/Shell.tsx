@@ -1,8 +1,9 @@
 import { LockBot } from '../components/LockBot.tsx'
-import { useEffect, useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useMemo, useState, type FormEvent } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { restoreCache, useBot, useBotHealth, useBusy } from '../api/bot.ts'
+import { runCommand } from '../api/client.ts'
 import { checkForUpdates } from './updates.ts'
 import { describedBy, Field } from '../components/Field.tsx'
 import { BotMark, Icon } from '../components/Icon.tsx'
@@ -20,7 +21,7 @@ import { useUi } from '../state/ui.ts'
 import { WrongPassphrase } from '../state/vault.ts'
 import { useTheme } from '../theme.ts'
 import { useSnapshotAlerts } from './alerts.ts'
-import { sectionsFor, type Role } from './nav.ts'
+import { itemAt, sectionsFor, type NavSection, type Role } from './nav.ts'
 import { BottomNav, SectionTabs, SideNav } from './Navigation.tsx'
 import { CommandPalette } from './Palette.tsx'
 
@@ -37,7 +38,7 @@ function ConnectionChip() {
       </Link>
     )
   const state = health.unauthorized || health.unreachable ? 'bad' : busy ? 'busy' : health.lastOkAt ? 'ok' : ''
-  const words = health.unauthorized ? 'key refused' : health.unreachable ? 'unreachable' : busy ? 'busy' : health.lastOkAt ? 'connected' : 'connecting'
+  const words = health.unauthorized ? (connection.person ? 'signed out' : 'key refused') : health.unreachable ? 'unreachable' : busy ? 'busy' : health.lastOkAt ? 'connected' : 'connecting'
   // The bot, and the trading account its answers act on (none until this device signs in to one).
   const account = health.account
   const shown = account ? `${connection.name} · ${account}` : connection.name
@@ -107,6 +108,15 @@ function Banners() {
         Offline: showing the bot as this device last saw it.
       </div>
     )
+  if (health.unauthorized && connection.person)
+    return (
+      <div className="banner" role="alert">
+        Your sign-in has ended.
+        <button type="button" className="link" onClick={() => navigate(`/signin?login=${encodeURIComponent(connection.person!.login)}`)}>
+          Sign in again
+        </button>
+      </div>
+    )
   if (health.unauthorized)
     return (
       <div className="banner" role="alert">
@@ -123,6 +133,14 @@ function Banners() {
         <button type="button" className="link" onClick={() => navigate('/connections')}>
           Check the connection
         </button>
+      </div>
+    )
+  if (health.signedOut && connection.person)
+    return (
+      <div className="banner calm" role="status">
+        {connection.person.role === 'client'
+          ? 'No account is linked to you yet: the fund links it for you.'
+          : 'No trading account reaches you yet: the fund’s owner manages the accounts.'}
       </div>
     )
   if (health.signedOut)
@@ -252,7 +270,7 @@ function useAutoLock() {
   }, [lock])
 }
 
-function useShortcuts(role: Role) {
+function useShortcuts(sections: NavSection[]) {
   const navigate = useNavigate()
   const ui = useUi()
   useEffect(() => {
@@ -265,7 +283,7 @@ function useShortcuts(role: Role) {
         ui.set({ paletteOpen: true })
       }
       // Alt+1 … Alt+9: the screens in the navigation's order.
-      const screens = sectionsFor(role).flatMap((section) => section.items)
+      const screens = sections.flatMap((section) => section.items)
       const digit = Number(event.key)
       if (event.altKey && digit >= 1 && digit <= Math.min(9, screens.length)) {
         event.preventDefault()
@@ -274,7 +292,7 @@ function useShortcuts(role: Role) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [navigate, ui, role])
+  }, [navigate, ui, sections])
 }
 
 function Runtime() {
@@ -284,7 +302,24 @@ function Runtime() {
 }
 
 // /design is the kit's page, in development builds only (App.tsx).
-const OPEN_WITHOUT_BOT = ['/connect', '/connections', '/install', '/settings', '/design']
+const OPEN_WITHOUT_BOT = ['/signin', '/connect', '/connections', '/install', '/settings', '/design']
+
+/** Brings a person's name and role up to date from the bot (an owner may have changed the role) when their sign-in opens. */
+function usePersonCheck() {
+  const { connection, key } = useBot()
+  const update = useConnections((state) => state.update)
+  const id = connection?.person ? connection.id : null
+  useEffect(() => {
+    if (!id || !key || !connection?.person) return
+    const known = connection.person
+    void runCommand({ url: connection.url, key, person: true }, ['me', '--json']).then((outcome) => {
+      const me = outcome.kind === 'ok' ? (outcome.result.json as { login: string; name: string; role: Role } | null) : null
+      if (me && (me.role !== known.role || me.name !== known.name)) void update(id, { person: { ...known, name: me.name, role: me.role } })
+    })
+    // Once per sign-in opened: the role is read again at the next start.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, key])
+}
 
 export function Shell() {
   const { connection, ready } = useBot()
@@ -292,18 +327,25 @@ export function Shell() {
   const location = useLocation()
   const navigate = useNavigate()
   const ui = useUi()
-  // Until the bot has people with roles (steps 4–8 of the redesign plan), whoever holds the API key is the owner.
-  const role: Role = 'owner'
-  const sections = sectionsFor(role)
+  // A person's role is their sign-in's; whoever connects with the API key is the owner.
+  const role: Role = connection?.person?.role ?? 'owner'
+  const sections = useMemo(() => sectionsFor(role, { person: Boolean(connection?.person) }), [role, connection?.person])
   useAutoLock()
-  useShortcuts(role)
+  useShortcuts(sections)
+  usePersonCheck()
 
   useEffect(() => {
     if (connection) void restoreCache(connection.id)
   }, [connection])
   useEffect(() => {
-    if (loaded && !connection && !OPEN_WITHOUT_BOT.some((path) => location.pathname.startsWith(path))) navigate('/connect', { replace: true })
-  }, [loaded, connection, location.pathname, navigate])
+    const open = OPEN_WITHOUT_BOT.some((path) => location.pathname.startsWith(path))
+    if (loaded && !connection && !open) navigate('/signin', { replace: true })
+    // A person's sign-in kept for one visit only is gone after a reload: they sign in again.
+    else if (loaded && connection?.person && !ready && connection.storage === 'session' && !open)
+      navigate(`/signin?login=${encodeURIComponent(connection.person.login)}`, { replace: true })
+    // A client stays in their own places (the others would only be refused by the bot).
+    else if (connection?.person?.role === 'client' && !open && !itemAt(sections, location.pathname)) navigate(sections[0]!.items[0]!.to, { replace: true })
+  }, [loaded, connection, ready, sections, location.pathname, navigate])
   useEffect(() => {
     document.getElementById('main')?.focus({ preventScroll: true })
     window.scrollTo(0, 0)
@@ -332,7 +374,7 @@ export function Shell() {
       </Sheet>
       <CommandPalette />
       <Toasts />
-      {ready ? <Runtime /> : null}
+      {ready && role !== 'client' ? <Runtime /> : null}
     </div>
   )
 }
