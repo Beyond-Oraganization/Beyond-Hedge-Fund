@@ -45,7 +45,7 @@ test.describe('installing', () => {
     await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true)
     await context.setOffline(true)
     await page.reload()
-    await expect(page.getByRole('link', { name: 'Beyond Bot, Session' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Beyond Bot, Account' })).toBeVisible()
     await expect(page.getByText('Offline: showing the bot as this device last saw it.')).toBeVisible()
     await expect(page.getByText('Equity', { exact: true })).toBeVisible()
     await context.setOffline(false)

@@ -1,6 +1,6 @@
 import { LockBot } from '../components/LockBot.tsx'
 import { useEffect, useId, useState, type FormEvent } from 'react'
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { restoreCache, useBot, useBotHealth, useBusy } from '../api/bot.ts'
 import { checkForUpdates } from './updates.ts'
@@ -20,7 +20,8 @@ import { useUi } from '../state/ui.ts'
 import { WrongPassphrase } from '../state/vault.ts'
 import { useTheme } from '../theme.ts'
 import { useSnapshotAlerts } from './alerts.ts'
-import { MORE, NAV } from './nav.ts'
+import { sectionsFor, type Role } from './nav.ts'
+import { BottomNav, SectionTabs, SideNav } from './Navigation.tsx'
 import { CommandPalette } from './Palette.tsx'
 
 function ConnectionChip() {
@@ -58,87 +59,24 @@ function Header() {
   const { theme, toggle } = useTheme()
   const { offerable } = useInstall()
   const ui = useUi()
-  const navigate = useNavigate()
   const { connection, ready } = useBot()
   const [locking, setLocking] = useState(false)
   return (
     <header className="hdr">
       <div className="hdr-in">
-        <Link to="/" className="brand" aria-label="Beyond Bot, Session">
+        <Link to="/" className="brand" aria-label="Beyond Bot, Account">
           <BotMark size={40} />
           <span>BEYOND BOT</span>
         </Link>
-        <nav aria-label="Main navigation" className="nav">
-          {NAV.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end}>
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
         <div className="hdr-tools">
           <ConnectionChip />
           {offerable ? <IconButton icon="install" label="Install" showLabel onClick={() => ui.set({ installOpen: true })} /> : null}
           <IconButton icon="sun" label="Light theme" showLabel aria-pressed={theme === 'light'} onClick={toggle} />
-          {connection && ready ? <IconButton icon="lock" label="Lock the bot" className="desktop-only" onClick={() => setLocking(true)} /> : null}
-          <IconButton icon="settings" label="Settings" className="desktop-only" onClick={() => navigate('/settings')} />
+          {connection && ready ? <IconButton icon="lock" label="Lock the bot" onClick={() => setLocking(true)} /> : null}
         </div>
       </div>
       <LockBot open={locking} onClose={() => setLocking(false)} />
     </header>
-  )
-}
-
-function BottomNav() {
-  const ui = useUi()
-  const location = useLocation()
-  const inMore = MORE.some((item) => location.pathname.startsWith(item.to))
-  return (
-    <nav className="bnav" aria-label="Screens">
-      {NAV.slice(0, 4).map((item) => (
-        <NavLink key={item.to} to={item.to} end={item.end}>
-          <Icon name={item.icon} />
-          {item.label}
-        </NavLink>
-      ))}
-      <button type="button" className={cx(inMore && 'active')} aria-expanded={ui.moreOpen} aria-haspopup="dialog" onClick={() => ui.set({ moreOpen: true })}>
-        <Icon name="more" />
-        More
-      </button>
-    </nav>
-  )
-}
-
-function MoreSheet() {
-  const ui = useUi()
-  const { connection, ready } = useBot()
-  const [locking, setLocking] = useState(false)
-  const close = () => ui.set({ moreOpen: false })
-  return (
-    <>
-      <Sheet open={ui.moreOpen} onClose={close} title="More">
-        <nav aria-label="More screens" className="menu-list">
-          {MORE.map((item) => (
-            <NavLink key={item.to} to={item.to} onClick={close}>
-              <Icon name={item.icon} />
-              {item.label}
-            </NavLink>
-          ))}
-          {connection && ready ? (
-            <button
-              type="button"
-              onClick={() => {
-                close()
-                setLocking(true)
-              }}
-            >
-              <Icon name="lock" />
-              Lock the bot
-            </button>
-          ) : null}
-        </nav>
-      </Sheet>
-      <LockBot open={locking} onClose={() => setLocking(false)} />
-    </>
   )
 }
 
@@ -314,7 +252,7 @@ function useAutoLock() {
   }, [lock])
 }
 
-function useShortcuts() {
+function useShortcuts(role: Role) {
   const navigate = useNavigate()
   const ui = useUi()
   useEffect(() => {
@@ -326,15 +264,17 @@ function useShortcuts() {
         event.preventDefault()
         ui.set({ paletteOpen: true })
       }
+      // Alt+1 … Alt+9: the screens in the navigation's order.
+      const screens = sectionsFor(role).flatMap((section) => section.items)
       const digit = Number(event.key)
-      if (event.altKey && digit >= 1 && digit <= NAV.length) {
+      if (event.altKey && digit >= 1 && digit <= Math.min(9, screens.length)) {
         event.preventDefault()
-        navigate(NAV[digit - 1]!.to)
+        navigate(screens[digit - 1]!.to)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [navigate, ui])
+  }, [navigate, ui, role])
 }
 
 function Runtime() {
@@ -352,8 +292,11 @@ export function Shell() {
   const location = useLocation()
   const navigate = useNavigate()
   const ui = useUi()
+  // Until the bot has people with roles (steps 4–8 of the redesign plan), whoever holds the API key is the owner.
+  const role: Role = 'owner'
+  const sections = sectionsFor(role)
   useAutoLock()
-  useShortcuts()
+  useShortcuts(role)
 
   useEffect(() => {
     if (connection) void restoreCache(connection.id)
@@ -376,11 +319,14 @@ export function Shell() {
       <BusyBar />
       <UpdatePrompt />
       <Banners />
-      <main id="main" tabIndex={-1} className="main">
-        {!loaded ? null : connection && !ready && !open ? <Unlock /> : <Outlet />}
-      </main>
-      <BottomNav />
-      <MoreSheet />
+      <div className="frame">
+        <SideNav sections={sections} />
+        <main id="main" tabIndex={-1} className="main">
+          <SectionTabs sections={sections} />
+          {!loaded ? null : connection && !ready && !open ? <Unlock /> : <Outlet />}
+        </main>
+      </div>
+      <BottomNav sections={sections} />
       <Sheet open={ui.installOpen} onClose={() => ui.set({ installOpen: false })} title="Install Beyond Bot">
         <InstallHelp />
       </Sheet>
