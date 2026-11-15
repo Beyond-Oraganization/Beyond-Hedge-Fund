@@ -6,7 +6,7 @@
 // without X-BeyondBot-Connection reaches no account; the login that creates a connection answers with its token in
 // `connection`; an unknown token, or an X-BeyondBot-Account the connection does not hold, is 403. People (people.mjs):
 // signin needs no key; a person's token (bbp_…) is a bearer too, runs what their role may (403 otherwise), and acts on a
-// connection of their own holding the accounts they reach.
+// connection of their own holding the accounts they reach. Portfolios (portfolio.mjs): `portfolio` and `activity`.
 //
 //   node mock-bot/server.mjs [--port 8443] [--speed 60] [--signed-out] [--ordering-bug] [--add-delay 3500]
 //   MOCK_BOT_KEY (default below), MOCK_BOT_ORIGINS ("*" = any localhost origin, or a comma list)
@@ -16,6 +16,7 @@ import http from 'node:http'
 import { randomBytes } from 'node:crypto'
 import { createBot } from './bot.mjs'
 import { createPeople } from './people.mjs'
+import { createPortfolio } from './portfolio.mjs'
 
 export const DEFAULT_KEY = 'mock-bot-key-0123456789abcdef0123456789abcdef'
 const MAX_BODY = 4096
@@ -174,6 +175,12 @@ export function startServer({ port = 8443, key = DEFAULT_KEY, origins = '*', con
           return res.end(JSON.stringify(refused(describe(args), { message: no, hint: null })))
         }
         if (!personal.has(caller.person.login)) personal.set(caller.person.login, { accounts: people.accountsOf(caller.person), current: people.accountsOf(caller.person)[0] ?? null })
+      }
+
+      // The fund's portfolios, on the bot's clock (so /__mock/advance moves them too).
+      if (args[0] === 'portfolio' || args[0] === 'activity') {
+        const fund = createPortfolio(() => bot.now())
+        return reply(args[0] === 'portfolio' ? fund.portfolio(args) : fund.activity(args))
       }
 
       const token = caller.kind === 'person' ? null : String(req.headers['x-beyondbot-connection'] ?? '').trim() || null
