@@ -90,7 +90,7 @@ function AccountCard({ account }: { account: TradingAccount }) {
       <div className="card-head">
         <span className="card-title">{account.login}</span>
         <span className="pills">
-          {account.current ? <Pill dot>current</Pill> : null}
+          {account.current ? <Pill dot>Current</Pill> : null}
           <ModePill live={account.live} />
         </span>
       </div>
