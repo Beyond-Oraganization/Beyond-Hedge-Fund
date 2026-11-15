@@ -32,6 +32,13 @@ npm run lighthouse     # after a build: Lighthouse's mobile performance, at leas
 
 **Signing in.** The fund's people sign in on the app's first screen with their login, password and 6-digit code (see the bot's README, *People and their sign-in*). The published app fills in the fund's server, `https://89-168-29-172.sslip.io` (`pwa/.env.production`, `VITE_FUND_API`): Caddy on the Oracle server serves the bot's API there with a Let's Encrypt certificate it renews itself, so no device installs a certificate. To move the fund to another address, change that file, add the address to Caddy, and add the app's origin to `BEYONDBOT_API_ORIGINS` if the app moves too.
 
+**A client's places.** A client who signs in sees three places: **Home**, **Activity** and **Account**.
+- **Home** shows what their money is worth and how it did today, this month and since joining. Deposits and withdrawals are left out of these returns. A chart of the value over time marks each deposit and withdrawal, with the same said in words under it. Below it are the latest three things that happened.
+- **Activity** lists closed trades, deposits and withdrawals, and strategies started and stopped, one card per UTC day, newest first.
+- **Account** names their account at the broker and their sign-in.
+
+Until the bot has asked the broker for the latest deposits (it does so every hour), Home says so, because a recent deposit could otherwise show as a gain. The screens read the bot's `portfolio --json` and `activity --json`. Code is in `pwa/src/features/portfolio/`. The mock bot (`pwa/mock-bot/portfolio.mjs`) gives everyone 70 days of the `demo` account in EUR, with a 2,000 deposit a week ago. Sign in as `carol` / `demo-password` with any code but 000000.
+
 **Connecting a bot with its API key** (the owner, under *Advanced* on the sign-in screen). On the bot's server, allow the app's origin and restart the bot:
 
 ```sh

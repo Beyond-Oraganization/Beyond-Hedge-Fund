@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { BOT, cspViolations, resetBot, watchCsp } from './helpers.ts'
+import { BOT, cspViolations, resetBot, shown, watchCsp } from './helpers.ts'
 
 /**
  * The fund's people (mock-bot/people.mjs): signing in with a password and a 6-digit code, the navigation of their role,
@@ -67,14 +67,28 @@ test('a first sign-in chooses a password and adds the code app', async ({ page }
   await expect(page.getByText('Equity', { exact: true })).toBeVisible()
 })
 
-test('a client starts at their account, and stays in their own places', async ({ page }) => {
+test('a client starts at Home, sees their money and what happened, and stays in their own places', async ({ page }) => {
   await signIn(page, 'carol')
   await enterCode(page)
 
+  await expect(page).toHaveURL(/#\/home$/)
+  await expect(page.getByText('Your portfolio')).toBeVisible()
+  await expect(page.getByText(/^[\d,]+\.\d\d EUR$/)).toBeVisible()
+  await expect(page.getByText(/a deposit of 2,000\.00 EUR on/)).toBeVisible()
+  await expect(page.getByText('Closed XAUUSD buy 2 at a gain of 84.10')).toBeVisible()
+
+  await shown(page.getByRole('link', { name: 'Activity', exact: true })).click()
+  await expect(page).toHaveURL(/#\/activity$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Activity' })).toBeVisible()
+  await expect(page.getByText('Deposit: Second transfer')).toBeVisible()
+
+  await shown(page.getByRole('link', { name: /^(Account|Your account)$/ })).click()
   await expect(page).toHaveURL(/#\/me$/)
   await expect(page.getByRole('heading', { level: 1, name: 'Your account' })).toBeVisible()
+  await expect(page.getByText('demo, in EUR')).toBeVisible()
+
   await page.goto('#/markets')
-  await expect(page).toHaveURL(/#\/me$/)
+  await expect(page).toHaveURL(/#\/home$/)
 })
 
 test('the API key stays for the owner, under Advanced', async ({ page }) => {

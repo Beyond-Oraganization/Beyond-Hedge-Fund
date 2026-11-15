@@ -63,7 +63,8 @@ export function BottomNav({ sections }: { sections: NavSection[] }) {
 export function SectionTabs({ sections }: { sections: NavSection[] }) {
   const { pathname } = useLocation()
   const open = sectionOf(sections, pathname)
-  if (!open) return null
+  // A section of one screen (a client's places) needs no tabs: the bottom bar already names it.
+  if (!open || open.items.length < 2) return null
   const current = itemAt(sections, pathname)
   return (
     <nav className="subnav" aria-label={`${open.label} screens`}>
