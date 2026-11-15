@@ -21,16 +21,16 @@ const PEOPLE = () => [
 ]
 
 // The real bot's table: each command's lowest role (client < staff < owner); one it does not know is the owner's alone.
-const BRANCHES = new Set(['market', 'candles', 'indicators', 'trading', 'orders', 'people', 'fund', 'clients'])
+const BRANCHES = new Set(['market', 'candles', 'indicators', 'trading', 'orders', 'people', 'fund', 'clients', 'cashflows'])
 const RANK = { client: 0, staff: 1, owner: 2 }
 const RULES = {
-  help: 'client', me: 'client', signin: 'client', signout: 'client',
+  help: 'client', me: 'client', signin: 'client', signout: 'client', portfolio: 'client', activity: 'client',
   accounts: 'client', use: 'client', balance: 'client', positions: 'client', 'trading status': 'client', 'orders list': 'client',
   status: 'staff', audit: 'staff', login: 'staff', logout: 'staff', session: 'staff',
   'market list': 'staff', 'market add': 'staff', 'market sync': 'staff', 'candles show': 'staff', 'candles export': 'staff', 'candles oldest': 'staff',
   'indicators show': 'staff', strategies: 'staff', signal: 'staff', backtest: 'staff', backtests: 'staff', kelly: 'staff',
   'trading start': 'staff', 'trading stop': 'staff', 'trading check': 'staff', 'trading minimum': 'staff', 'orders place': 'staff', 'orders close': 'staff',
-  'fund accounts': 'staff', 'clients list': 'staff', 'clients add': 'staff', 'clients link': 'staff', 'clients unlink': 'staff',
+  'fund accounts': 'staff', 'cashflows list': 'staff', 'cashflows add': 'staff', 'clients list': 'staff', 'clients add': 'staff', 'clients link': 'staff', 'clients unlink': 'staff',
   register: 'owner', credentials: 'owner', 'market remove': 'owner', 'orders clear': 'owner', 'fund manage': 'owner', 'fund unmanage': 'owner',
 }
 const PEOPLE_COMMANDS = ['list', 'add', 'role', 'disable', 'enable', 'reset-code', 'reset-password']

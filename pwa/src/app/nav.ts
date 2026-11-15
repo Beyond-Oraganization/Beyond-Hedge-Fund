@@ -9,13 +9,17 @@ import type { PersonRole } from '../state/connections.ts'
 export type Role = PersonRole
 
 export type NavItem = { to: string; label: string; end?: boolean }
-export type NavSection = { id: 'trading' | 'research' | 'admin' | 'account'; label: string; icon: IconName; items: NavItem[] }
+export type NavSection = { id: 'trading' | 'research' | 'admin' | 'home' | 'activity' | 'account'; label: string; icon: IconName; items: NavItem[] }
 
 /** A person's own sign-in: who they are, and signing out. */
 const YOUR_SIGN_IN: NavItem = { to: '/me', label: 'Your sign-in' }
 
-/** A client's places. Their portfolio, strategies and activity come with their screens (steps 10 and 16 of the plan). */
-const CLIENT: NavSection[] = [{ id: 'account', label: 'Account', icon: 'account', items: [{ to: '/me', label: 'Your account' }] }]
+/** A client's places, one screen each (plan, section 7). Strategies joins them with the strategy menu (step 16). */
+const CLIENT: NavSection[] = [
+  { id: 'home', label: 'Home', icon: 'home', items: [{ to: '/home', label: 'Home' }] },
+  { id: 'activity', label: 'Activity', icon: 'orders', items: [{ to: '/activity', label: 'Activity' }] },
+  { id: 'account', label: 'Account', icon: 'account', items: [{ to: '/me', label: 'Your account' }] },
+]
 
 const TRADING: NavSection = {
   id: 'trading',

@@ -42,7 +42,7 @@ function show() {
         <Routes>
           <Route path="/signin" element={<SignIn />} />
           <Route path="/" element={<p>Home screen</p>} />
-          <Route path="/me" element={<p>Your account screen</p>} />
+          <Route path="/home" element={<p>Client home screen</p>} />
           <Route path="/connect" element={<p>Connect with a key</p>} />
         </Routes>
       </MemoryRouter>
@@ -134,7 +134,7 @@ describe('SignIn', () => {
     await user.type(await screen.findByLabelText('6-digit code'), '123456')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByText('Your account screen')).toBeInTheDocument()   // a client starts at their account, for now
+    expect(await screen.findByText('Client home screen')).toBeInTheDocument()   // a client starts at their Home
     expect(active().connection.storage).toBe('session')
     expect(active().connection.sealed).toBeNull()
   })

@@ -119,3 +119,22 @@
 .k-facts{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--k-sp-2) var(--k-sp-5);margin:0}
 .k-facts dt{font:500 var(--k-fs-s)/1.5 var(--f-r);color:var(--grey-7)}
 .k-facts dd{margin:0;font:400 var(--k-fs-m)/1.5 var(--f-r);overflow-wrap:anywhere}
+
+/* a client's portfolio (src/features/portfolio): a narrow column, the value chart, the activity feed */
+.k-narrow{max-width:720px}
+.k-chart{display:grid;gap:var(--k-sp-2);margin:0;min-width:0;overflow:hidden}
+.k-chart svg{display:block;max-width:100%;height:auto}
+.k-chart-grid{stroke:var(--grey-3);stroke-width:1}
+.k-chart-axis{font:500 11px/1 var(--f-t);fill:var(--grey-7)}
+.k-chart-area{fill:var(--grey-2)}
+.k-chart-line{fill:none;stroke:var(--c-fg);stroke-width:2.5;stroke-linejoin:round}
+.k-chart-mark{stroke:var(--c-fg);stroke-width:1.5;stroke-dasharray:4 3}
+.k-chart-tag{font:700 11px/1 var(--f-t);fill:var(--c-fg)}
+.k-chart-dot{fill:var(--c-fg)}
+.k-feed{display:grid;margin:0;padding:0;list-style:none}
+.k-feed li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:baseline;gap:var(--k-sp-3);padding:var(--k-sp-3) 0;border-top:1px solid var(--grey-3)}
+.k-feed li:first-child{border-top:0;padding-top:0}
+.k-feed-time{font:500 var(--k-fs-s)/1.5 var(--f-t);color:var(--grey-7)}
+.k-feed-text{font:400 var(--k-fs-m)/1.5 var(--f-r);overflow-wrap:anywhere}
+.k-feed-account{color:var(--grey-7);font-size:var(--k-fs-s)}
+.k-feed-amount{font:600 var(--k-fs-m)/1.5 var(--f-t);font-variant-numeric:tabular-nums;white-space:nowrap}

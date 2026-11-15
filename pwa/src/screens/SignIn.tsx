@@ -78,7 +78,7 @@ function SignInForm({ givenLogin }: { givenLogin: string }) {
         case 'signedIn': {
           const person = answer.person!
           await addPerson({ url: server.trim(), token: answer.token!, person: { login: person.login, name: person.name, role: person.role, device: person.device }, remember })
-          navigate(person.role === 'client' ? '/me' : '/', { replace: true })
+          navigate(person.role === 'client' ? '/home' : '/', { replace: true })
         }
       }
     } finally {

@@ -44,8 +44,10 @@ describe('which section a screen belongs to', () => {
 })
 
 describe('the navigation of people who sign in', () => {
-  it('gives a client their account only, for now', () => {
-    expect(sectionsFor('client', { person: true }).flatMap((section) => section.items.map((item) => item.to))).toEqual(['/me'])
+  it('gives a client Home, Activity and their Account, each a place of its own', () => {
+    const sections = sectionsFor('client', { person: true })
+    expect(sections.map((section) => section.label)).toEqual(['Home', 'Activity', 'Account'])
+    expect(sections.map((section) => section.items.map((item) => item.to))).toEqual([['/home'], ['/activity'], ['/me']])
   })
 
   it('adds a person’s own sign-in to Admin, and not for the API key', () => {
