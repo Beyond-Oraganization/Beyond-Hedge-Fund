@@ -1,13 +1,11 @@
 import { create } from 'zustand'
 
-/** Sheets that several screens open: the phone's More menu and the install help. */
+/** Sheets that several screens open: the install help and the command palette. */
 export const useUi = create<{
-  moreOpen: boolean
   installOpen: boolean
   paletteOpen: boolean
-  set: (patch: Partial<{ moreOpen: boolean; installOpen: boolean; paletteOpen: boolean }>) => void
+  set: (patch: Partial<{ installOpen: boolean; paletteOpen: boolean }>) => void
 }>((set) => ({
-  moreOpen: false,
   installOpen: false,
   paletteOpen: false,
   set: (patch) => set(patch),
