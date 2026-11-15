@@ -5,7 +5,12 @@ import { bodyBytes, bodyFor, describe, MAX_BODY_BYTES, normalize, refusal } from
  * Where a bot answers, the key it wants, and this device's connection to it: the token its first login answered
  * with (Api/ApiConnections.cs), and optionally one of that connection's accounts for this command only.
  */
-export type Target = { url: string; key: string; connection?: string | null; account?: string | null }
+/**
+ * Where a command goes and as whom. `key` is the bearer: the API key, or a person's token (bbp_…, see the fund's sign-in);
+ * empty for the one command sent without either, `signin`. `person` says the bearer is a person's token: their 403s are the
+ * fund's policy refusing, not an expired connection.
+ */
+export type Target = { url: string; key: string; connection?: string | null; account?: string | null; person?: boolean }
 
 /** The request headers of a bot connection (Api/CommandApi.cs). */
 export const CONNECTION_HEADER = 'X-BeyondBot-Connection'
@@ -19,6 +24,8 @@ export type Outcome =
   | { kind: 'signedOut'; result: CommandResult; roundTripMs: number }
   /** 403: the device's connection expired (or the bot restarted), or the picked account is not on it. */
   | { kind: 'expired'; result: CommandResult; roundTripMs: number }
+  /** 403 to a signed-in person: their role may not run the command, or the account is not theirs. */
+  | { kind: 'forbidden'; result: CommandResult; roundTripMs: number }
   | { kind: 'cancelled' }
   | { kind: 'unauthorized' }
   | { kind: 'tooLarge' }
@@ -100,7 +107,8 @@ export async function runCommand(target: Target, args: string[], options: { sign
   const started = performance.now()
   let response: Response
   try {
-    const headers: Record<string, string> = { Authorization: `Bearer ${target.key}`, 'Content-Type': 'application/json' }
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (target.key) headers.Authorization = `Bearer ${target.key}`
     if (target.connection) headers[CONNECTION_HEADER] = target.connection
     if (target.account) headers[ACCOUNT_HEADER] = target.account
     response = await fetch(endpoint(target.url), {
@@ -129,10 +137,11 @@ export async function runCommand(target: Target, args: string[], options: { sign
   }
   const roundTripMs = performance.now() - started
   if (response.status === 403) {
+    const kind = target.person ? 'forbidden' : 'expired'
     try {
-      return { kind: 'expired', result: readResult(body), roundTripMs }
+      return { kind, result: readResult(body), roundTripMs }
     } catch {
-      return { kind: 'expired', result: localResult(argv, 'This connection has expired; sign in again.', null), roundTripMs }
+      return { kind, result: localResult(argv, target.person ? 'You may not run that.' : 'This connection has expired; sign in again.', null), roundTripMs }
     }
   }
   if (response.status !== 200 && response.status !== 400)
@@ -168,6 +177,7 @@ export function explain(outcome: Outcome): { message: string; hint: string | nul
     case 'failed':
     case 'usage':
     case 'expired':
+    case 'forbidden':
     case 'signedOut': {
       const error = outcome.result.error
       if (error) return { message: error.message, hint: error.hint }
