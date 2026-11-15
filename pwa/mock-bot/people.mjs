@@ -30,7 +30,7 @@ const RULES = {
   'market list': 'staff', 'market add': 'staff', 'market sync': 'staff', 'candles show': 'staff', 'candles export': 'staff', 'candles oldest': 'staff',
   'indicators show': 'staff', strategies: 'staff', signal: 'staff', backtest: 'staff', backtests: 'staff', kelly: 'staff',
   'trading start': 'staff', 'trading stop': 'staff', 'trading check': 'staff', 'trading minimum': 'staff', 'orders place': 'staff', 'orders close': 'staff',
-  'fund accounts': 'staff', 'cashflows list': 'staff', 'cashflows add': 'staff', 'clients list': 'staff', 'clients add': 'staff', 'clients link': 'staff', 'clients unlink': 'staff',
+  'fund accounts': 'staff', 'fund overview': 'staff', 'cashflows list': 'staff', 'cashflows add': 'staff', 'clients list': 'staff', 'clients add': 'staff', 'clients link': 'staff', 'clients unlink': 'staff',
   register: 'owner', credentials: 'owner', 'market remove': 'owner', 'orders clear': 'owner', 'fund manage': 'owner', 'fund unmanage': 'owner',
 }
 const PEOPLE_COMMANDS = ['list', 'add', 'role', 'disable', 'enable', 'reset-code', 'reset-password']

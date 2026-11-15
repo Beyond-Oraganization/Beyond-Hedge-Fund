@@ -512,6 +512,7 @@ export function createBot(options = {}) {
         return {
           name: x.name, market: { symbol: m.symbol, interval: m.interval.name }, strategy: 'drcs', parameters: x.params, rules: x.rules.map((r) => r.text), sizing: x.sizing, startedAt: new Date(x.startedAt).toISOString(),
           ticks: x.ticks, trades: x.trades, lastTick: x.lastTick, lastError: x.lastError, lastErrorAt: x.lastErrorAt, nextTickAt: new Date(nextBoundary(m.interval.ms)).toISOString(),
+          budget: x.budget ? budgetView(x.budget, x.sizing, m.symbol, x.positions.length) : null,
         }
       }),
       system: {
@@ -524,6 +525,35 @@ export function createBot(options = {}) {
         logPath: `/opt/beyondbot/logs/beyondbot-${new Date(startedAt).toISOString().slice(0, 10).replace(/-/g, '')}.log`,
       },
     }
+  }
+
+  // ---------- session budgets (Core/Sizing/SessionBudget.cs, TradingSupervisor.CheckAsync) ----------
+  const money2 = (value) => value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  /** What a budget carries: the size of the next position, its quantity, and how many fit at once (results are not followed here). */
+  function budgetView(budget, sizing, symbol, open = 0) {
+    const size = sizing.method === 'Fixed' ? sizing.value : (budget.amount * sizing.value) / 100
+    const price = quote(symbol)
+    const quantity = Math.max(0, Math.round((size / price) * 100) / 100)
+    const room = size > 0 ? Math.floor(budget.amount / size + 1e-9) : 0
+    const sizeWords = sizing.method === 'Fixed' ? `${money2(size)} ${budget.currency} per position` : `${round(sizing.value, 2)}% of it is ${money2(size)} ${budget.currency} per position`
+    const text = room > 0
+      ? `Budget ${money2(budget.amount)} ${budget.currency}. ${sizeWords}, ${quantity} ${symbol}: room for ${room === 1 ? '1 position' : `${room} positions`} at once${open ? `, ${open} open` : ''}, each reaching the smallest order.`
+      : `Budget ${money2(budget.amount)} ${budget.currency}. ${sizeWords}: no position opens. ${sizing.method} is more than the ${money2(budget.amount)} ${budget.currency} budget, so no position fits.`
+    return { amount: budget.amount, currency: budget.currency, since: new Date(budget.since).toISOString(), results: 0, unknownResults: 0, money: budget.amount, size: round(size, 2), quantity, room, open, canOpen: open < room, text }
+  }
+  /** The account's other sessions with a budget, and the balance none of them holds. */
+  function holders(replacing) {
+    const others = [...s.sessions.values()].filter((x) => x.budget && x.name.toLowerCase() !== (replacing ?? '').toLowerCase()).map((x) => ({ session: x.name, money: x.budget.amount }))
+    return { others, unassigned: round(s.account.balance - others.reduce((sum, o) => sum + o.money, 0), 2) }
+  }
+  /** TradingSupervisor.OverBalance's words. */
+  const overBalance = (amount, unassigned, others) =>
+    `A budget of ${money2(amount)} ${s.account.currency} does not fit: ${money2(Math.max(0, unassigned))} ${s.account.currency} of the ${money2(s.account.balance)} ${s.account.currency} balance is not held by another session (${others.map((o) => `'${o.session}' ${money2(o.money)}`).join(', ')}). Choose --budget ${Math.max(0, Math.floor(unassigned * 100) / 100)} or less, or stop a session.`
+  const readBudget = (text) => {
+    if (text == null) return null
+    const amount = Number(String(text).replace(/,/g, ''))
+    if (!Number.isFinite(amount) || amount <= 0) throw new Exit(1, `--budget takes an amount above 0 in the account's currency, e.g. --budget 1000; '${text}' is not one.`)
+    return amount
   }
 
   // ---------- commands ----------
@@ -1020,8 +1050,9 @@ export function createBot(options = {}) {
       for (const b of list) o.text(`#${b.id}: ${b.setup}`)
     },
     'trading start': (o, argv) => {
-      const input = strategyInput(argv, { '--live': {}, '--name': { alias: '-n', value: true }, '--sizing': { value: true } })
+      const input = strategyInput(argv, { '--live': {}, '--name': { alias: '-n', value: true }, '--sizing': { value: true }, '--budget': { value: true } })
       const choice = parseSizing(input.opt.sizing ?? SIZING.default)
+      const amount = readBudget(input.opt.budget)
       requireLogin()
       if (users.get(s.user.toLowerCase())?.mode === 'Live' && !input.opt.live)
         throw new Exit(1, `'${s.user}' is a LIVE ${users.get(s.user.toLowerCase()).broker} account: this strategy trades real money. Start it? Pass --live to confirm without being asked.`)
@@ -1038,14 +1069,39 @@ export function createBot(options = {}) {
       // TradingSupervisor.StartAsync: the sizing is worked out before anything is replaced, so a refused Kelly changes nothing.
       const sizing = resolveSizing(choice, market, input.params, input.rules)
       const replacing = [...s.sessions.keys()].find((k) => k.toLowerCase() === name.toLowerCase())
+      if (amount != null) {
+        const { others, unassigned } = holders(name)
+        if (amount > unassigned) throw new Exit(1, overBalance(amount, unassigned, others))
+      }
       if (replacing) s.sessions.delete(replacing)
-      const session = { name, key, params: input.params, rules: input.rules, sizing, startedAt: now(), ticks: 0, trades: 0, lastTick: null, lastError: null, lastErrorAt: null, evaluated: -1, positions: [], nextTickAt: nextBoundary(market.interval.ms) }
+      const budget = amount == null ? null : { amount, currency: s.account.currency, since: now() }
+      const session = { name, key, params: input.params, rules: input.rules, sizing, budget, startedAt: now(), ticks: 0, trades: 0, lastTick: null, lastError: null, lastErrorAt: null, evaluated: -1, positions: [], nextTickAt: nextBoundary(market.interval.ms) }
       const preview = tick(session, true)
       s.sessions.set(name, session)
       insightPanel(o, market, preview)
       o.text(`✓ ${replacing ? 'Replaced' : 'Started'} ${name}: trading ${market.symbol} ${market.interval.code} with drcs on cTrader DEMO (${describeParams(input.params, input.rules)}).`)
       o.text(`  Position sizing: ${sizingWords(sizing)}${sizing.kelly ? `, from ${kellyBasisWords(sizing.kelly)}` : ''}.`)
+      if (budget) o.text(`  ${budgetView(budget, sizing, market.symbol).text}`)
       o.text(`  The newest candle was only previewed; the first trade can come at the next close, ${F.hhmm(session.nextTickAt)} UTC. Each tick prints a line here.`)
+    },
+    'trading check': (o, argv) => {
+      const input = strategyInput(argv, { '--name': { alias: '-n', value: true }, '--sizing': { value: true }, '--budget': { value: true }, '--json': {} })
+      const choice = parseSizing(input.opt.sizing ?? SIZING.default)
+      const amount = readBudget(input.opt.budget)
+      requireLogin()
+      const market = marketOrFail(input.symbol, input.interval)
+      const sizing = resolveSizing(choice, market, input.params, input.rules)
+      const { others, unassigned } = holders(input.opt.name?.trim())
+      const view = amount == null ? null : budgetView({ amount, currency: s.account.currency, since: now() }, sizing, market.symbol)
+      const refusal = amount == null ? null : amount > unassigned ? overBalance(amount, unassigned, others) : view.room === 0 ? view.text.slice(view.text.indexOf('no position opens. ') + 19) : null
+      const text = view ? (refusal && amount > unassigned ? refusal : view.text) : `${sizingWords(sizing)} of the ${money2(s.account.balance)} ${s.account.currency} balance, no limit on positions at once.`
+      const json = { strategy: 'drcs', market: `${market.symbol} ${market.interval.code}`, sizing, currency: s.account.currency, balance: s.account.balance, unassigned: amount == null ? null : unassigned,
+        others, smallestOrder: null, budget: view, wouldStart: refusal == null, refusal, unchecked: null, text }
+      if (input.opt.json) {
+        o.text(JSON.stringify(json, null, 2))
+        return { json }
+      }
+      o.text(text)
     },
     'trading stop': (o, argv) => {
       const { pos, opt } = readArgs(argv, { '--name': { alias: '-n', value: true } })

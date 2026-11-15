@@ -41,6 +41,19 @@ Until the bot has asked the broker for the latest deposits (it does so every hou
 
 **Clients (staff and the owner).** The **Clients** section lists each client with their managed accounts, the value of each account and this month's return, who signs in for them, and what is still missing ("No account linked", "Nobody signs in"). **Add a client** opens the new client's page. On a client's page, staff link and unlink the client's managed accounts and the people who sign in for them; the bot's own rules decide what's allowed, and its reason is shown when it refuses. **View as client** shows that client's Home exactly as they see it. The screens read `clients list --json`, `fund accounts --json` and `portfolio --json`, and change things with `clients add|link|unlink`. Code is in `pwa/src/features/clients/`, and the mock bot's clients in `pwa/mock-bot/clients.mjs` (one client, "Carol Example", holding `demo`). Each client's limits come with the strategy menu (plan steps 15–16).
 
+**Overview (staff and the owner).** Staff and the owner land here after signing in. It shows:
+- the money under management and today's result, per currency, with deposits left out;
+- how many clients, managed accounts and strategy sessions there are;
+- **Needs attention**: what the bot's `fund overview --json` reports, errors first, each with a link to where it's fixed (the client's page, or Trading).
+
+Code is in `pwa/src/features/overview/`. The mock bot's overview (`pwa/mock-bot/overview.mjs`) is worked out from its portfolio, clients and sessions.
+
+**Trading: budgets, and every session at once.**
+- **Budget:** the start form takes an optional **Budget** in the account's currency. Before anything opens, the app asks the bot `trading check --json`. If the start would be refused (the balance doesn't carry the budget, or Kelly has no edge), the bot's reason shows in the form. Otherwise the confirmation says what the session will trade with ("room for 2 positions at once"), and the start sends `--budget`.
+- **Every session:** a connection that holds two or more accounts (staff reach every managed one) also gets **Every session, every account**: one table with each session's account, market, budget and room, trades, and last tick, a failed one marked as an error.
+
+Code is in `pwa/src/features/trading/`.
+
 **Connecting a bot with its API key** (the owner, under *Advanced* on the sign-in screen). On the bot's server, allow the app's origin and restart the bot:
 
 ```sh

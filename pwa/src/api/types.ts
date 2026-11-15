@@ -196,6 +196,24 @@ export type TradingSessionState = {
   lastError: string | null
   lastErrorAt: Iso | null
   nextTickAt: Iso
+  /** What it trades with (bot 2.4.0): none trades the whole balance, with no limit on positions at once. */
+  budget?: SessionBudget | null
+}
+
+/** Trading/TradingEvents.cs BudgetView: what a session was given and, once read, what it carries now (null until then). */
+export type SessionBudget = {
+  amount: number
+  currency: string
+  since: Iso
+  results?: number | null
+  money?: number | null
+  size?: number | null
+  quantity?: number | null
+  room?: number | null
+  open?: number | null
+  canOpen?: boolean | null
+  /** All of it in a sentence. */
+  text?: string | null
 }
 
 export type BrokerConnection = { isConnected: boolean; connectedSince: Iso | null; lastLatency: Span | null; lastError: string | null }

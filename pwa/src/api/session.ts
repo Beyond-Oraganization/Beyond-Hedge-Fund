@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { CommandResult, SessionSnapshot } from './types.ts'
+import type { CommandResult, SessionSnapshot, TradingSessionState } from './types.ts'
 import { parsed, unreadable, type Parsed } from './parse/blocks.ts'
 
 /** A session's name: its own, or the strategy's for a bot from before names (one session per market). */
@@ -35,6 +35,21 @@ const sizing = z.object({
   method: str,
   value: num,
   kelly: z.object({ estimate: kellyEstimate, shareOfKelly: num, backtestId: num, backtestedAt: str, from: str, to: str }).nullable(),
+})
+// A session's budget (Trading/TradingEvents.cs BudgetView, bot 2.4.0): what it was given and, once read from the order
+// records, what it carries now. A session without one trades the whole balance; a bot from before budgets sends none.
+const budget = z.object({
+  amount: num,
+  currency: str,
+  since: str,
+  results: numOrNull.optional(),
+  money: numOrNull.optional(),
+  size: numOrNull.optional(),
+  quantity: numOrNull.optional(),
+  room: numOrNull.optional(),
+  open: numOrNull.optional(),
+  canOpen: z.boolean().nullable().optional(),
+  text: strOrNull.optional(),
 })
 const insight = z.object({ signal, reason: str, values: z.array(z.object({ name: str, value: num, isLevel: z.boolean().optional() })) })
 const candle = z.object({ openTime: str, closeTime: str, open: num, high: num, low: num, close: num, volume: num })
@@ -117,6 +132,7 @@ export const SessionSchema = z.object({
       lastError: strOrNull,
       lastErrorAt: strOrNull,
       nextTickAt: str,
+      budget: budget.nullish(),
     }),
   ),
   system: z.object({
@@ -133,6 +149,13 @@ export const SessionSchema = z.object({
     logPath: strOrNull,
   }),
 })
+
+/** The sessions from a `session strategies --json` answer (one account's), checked. */
+export function parseStrategies(result: CommandResult): Parsed<TradingSessionState[]> {
+  const checked = SessionSchema.shape.strategies.safeParse(result.json)
+  if (!checked.success) return unreadable(`The sessions have an unexpected shape: ${checked.error.issues[0]?.path.join('.') ?? ''}`)
+  return parsed(checked.data as unknown as TradingSessionState[])
+}
 
 /** The snapshot from a `session --json` answer, checked; null fields from a broker that never answered are fine. */
 export function parseSession(result: CommandResult): Parsed<SessionSnapshot> {

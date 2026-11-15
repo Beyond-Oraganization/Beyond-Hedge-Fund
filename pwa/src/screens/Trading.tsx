@@ -20,11 +20,13 @@ import { StrategyForm } from '../components/StrategyForm.tsx'
 import { describeParams, describeSizing, initialConfig, toInput, validateConfig, type StrategyConfig } from '../strategy/config.ts'
 import { toast } from '../components/Toasts.tsx'
 import { Button, Callout, EmptyState, Pill, Section, Skeleton } from '../components/ui.tsx'
-import { fmtClock, fmtDuration, fmtElapsed, fmtHourMinute, fmtNumber, fmtPrice, fmtRelative } from '../format.ts'
+import { fmtClock, fmtDuration, fmtElapsed, fmtHourMinute, fmtMoney, fmtNumber, fmtPrice, fmtRelative } from '../format.ts'
 import { useNow } from '../hooks/env.ts'
 import { useMarkets, useStrategies } from '../hooks/data.ts'
 import { clockOffset, useSessionData } from '../hooks/session.ts'
 import { type TickEntry, useLogs, useTicks } from '../state/logs.ts'
+import { AllSessions } from '../features/trading/AllSessions.tsx'
+import { readBudget, readCheck, type StartCheck } from '../features/trading/check.ts'
 import { kellyBasisWords, lastSignalWords, levelsOf, outcomeWords, plural, sizingWords } from '../words.ts'
 
 function SessionCard({ session, offset, onStop }: { session: TradingSessionState; offset: number; onStop: () => void }) {
@@ -156,6 +158,12 @@ function StartForm({ running }: { running: TradingSessionState[] }) {
   // Several sessions can trade one market, each under a name; the same name replaces its session. A bot from
   // before names runs one session per market, which starting again replaces.
   const [name, setName] = useState('')
+  // A budget (bot 2.4.0): the session trades with this amount plus its results; checked with `trading check` before starting.
+  const [budgetText, setBudgetText] = useState('')
+  const [check, setCheck] = useState<StartCheck | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [refusal, setRefusal] = useState<string | null>(null)
+  const budget = readBudget(budgetText)
   const named = running.some((s) => s.name != null)
   const typedName = name.trim()
   const nameError = typedName && !SESSION_NAME.test(typedName) ? "1 to 40 letters, digits, spaces, '.', '_' or '-'." : null
@@ -185,6 +193,28 @@ function StartForm({ running }: { running: TradingSessionState[] }) {
   }
 
   const input = toInput(draft, definition)
+  const sessionArg = named ? typedName || null : null
+
+  // Asks the bot what the start would trade with; a refusal is shown here and nothing opens. A bot from before
+  // `trading check` (an unknown command) starts as before, with no check.
+  async function checkThenConfirm() {
+    setChecking(true)
+    setRefusal(null)
+    setFailure(null)
+    setCheck(null)
+    try {
+      const reading = readCheck(await run(cmd.tradingCheck(input, sessionArg, budget.amount)))
+      if (reading && !reading.wouldStart) return setRefusal(reading.refusal ?? reading.text)
+      setCheck(reading)
+      setConfirming(true)
+    } catch (error) {
+      if (error instanceof CommandFailure && /unknown command 'check'/i.test(error.message) && budget.amount == null) setConfirming(true)
+      else setFailure(error instanceof CommandFailure ? { message: error.message, hint: error.hint } : { message: String(error), hint: null })
+    } finally {
+      setChecking(false)
+    }
+  }
+
   return (
     <form
       className="stack"
@@ -192,7 +222,7 @@ function StartForm({ running }: { running: TradingSessionState[] }) {
       onSubmit={(event) => {
         event.preventDefault()
         setTouched(true)
-        if (valid && !nameError) setConfirming(true)
+        if (valid && !nameError && !budget.error) void checkThenConfirm()
       }}
     >
       <StrategyForm definitions={definitions} markets={marketRows} config={draft} onChange={(next) => {
@@ -207,6 +237,18 @@ function StartForm({ running }: { running: TradingSessionState[] }) {
           error={nameError ?? undefined}
           hint="Several sessions can trade one market, e.g. two variants of drcs on EURPLN 1h; each closes only its own positions. The same name replaces that session; left empty, the bot names it (drcs, drcs 2, …)."
         />
+      ) : null}
+      <TextField
+        id="t-budget"
+        label="Budget (optional)"
+        registration={{ name: 'budget', value: budgetText, inputMode: 'decimal', onChange: (event: ChangeEvent<HTMLInputElement>) => { setBudgetText(event.target.value); setRefusal(null) } }}
+        error={touched ? (budget.error ?? undefined) : undefined}
+        hint="In the account’s currency, e.g. 4000. The session trades with this amount plus the results of the positions it closes, and holds no more positions at once than it carries. Left empty, it trades the whole balance."
+      />
+      {refusal ? (
+        <Callout label="It would not start" tone="error">
+          <p>{refusal}</p>
+        </Callout>
       ) : null}
       {replacing ? (
         <Callout label="Already trading" tone="warn">
@@ -225,7 +267,7 @@ function StartForm({ running }: { running: TradingSessionState[] }) {
         <Button variant="ghost" busy={previewing} onClick={() => void doPreview()}>
           Preview the decision
         </Button>
-        <Button type="submit" icon="play">
+        <Button type="submit" icon="play" busy={checking}>
           Start trading
         </Button>
       </div>
@@ -248,12 +290,14 @@ function StartForm({ running }: { running: TradingSessionState[] }) {
           ['Market', draft.market],
           ['Parameters', describeParams(input)],
           ['Position sizing', describeSizing(input.sizing, definition?.sizing ?? null)],
+          ...(budget.amount != null ? [['Budget', fmtMoney(budget.amount, current?.currency ?? '')] as [string, string]] : []),
+          ...(check?.text ? [['Before starting', check.text] as [string, string]] : []),
           ...(input.rules?.length ? [['Rules, in order', <ol key="rules" className="rule-list mono">{input.rules.map((rule, index) => <li key={index}>{rule}</li>)}</ol>] as [string, ReactNode]] : []),
           ...(replacing ? [['Replaces', named ? `“${sessionName(replaced)}”` : 'the session trading this market now'] as [string, string]] : []),
         ]}
         confirmLabel={live ? 'Start with real money' : replacing ? 'Replace and start' : 'Start trading'}
         onConfirm={async () => {
-          const answer = await run(cmd.tradingStart(input, live, named ? typedName || null : null), { invalidate: ['markets'] })
+          const answer = await run(cmd.tradingStart(input, live, sessionArg, budget.amount), { invalidate: ['markets'] })
           const { done } = notices(answer)
           toast.success('Trading', done[0] ?? `${draft.market} with ${draft.strategy}`)
           const reading = parseSignal(answer)
@@ -289,6 +333,7 @@ export default function Trading() {
           ) : null
         }
       />
+      <AllSessions />
       <Section variant="alt" label="Running strategies">
         <Answer query={session} lines={3}>
           {(value) =>
