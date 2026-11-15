@@ -114,6 +114,22 @@ test('staff open a client, see what the client sees, and link and unlink their a
   await expect(page.getByText('Your portfolio')).toBeVisible()
 })
 
+test('the owner adds a person, hands over the temporary password, and sees it in the audit log', async ({ page }) => {
+  await signIn(page, 'olga')
+  await enterCode(page)
+  await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible()
+
+  await page.goto('#/people')
+  await page.getByLabel('Login', { exact: true }).fill('dana')
+  await page.getByLabel('Name', { exact: true }).fill('Dana Example')
+  await page.getByRole('button', { name: 'Add person' }).click()
+  await expect(page.getByText(/^Added dana \(Dana Example\), client\./)).toBeVisible()
+  await expect(page.locator('.k-secret')).toHaveText(/^[a-zA-Z2-9]{14}$/)
+
+  await page.goto('#/audit')
+  await expect(shown(page.getByText('people add dana --name Dana Example --role client --password=***'))).toBeVisible()
+})
+
 test('the API key stays for the owner, under Advanced', async ({ page }) => {
   await page.goto('#/signin')
   await page.getByText('Advanced').click()

@@ -50,6 +50,9 @@ const RESEARCH: NavSection = {
 }
 
 const ADMIN_ITEMS: (NavItem & { ownerOnly?: boolean })[] = [
+  { to: '/people', label: 'People', ownerOnly: true },
+  { to: '/managed', label: 'Managed accounts' },
+  { to: '/audit', label: 'Audit log' },
   { to: '/account', label: 'Trading accounts', ownerOnly: true },
   { to: '/connections', label: 'Connections', ownerOnly: true },
   { to: '/console', label: 'Console', ownerOnly: true },
