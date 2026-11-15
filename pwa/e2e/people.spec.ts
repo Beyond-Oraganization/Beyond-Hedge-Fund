@@ -130,6 +130,31 @@ test('the owner adds a person, hands over the temporary password, and sees it in
   await expect(shown(page.getByText('people add dana --name Dana Example --role client --password=***'))).toBeVisible()
 })
 
+test('a client starts a strategy from the menu within their limits, and stops it', async ({ page }) => {
+  await signIn(page, 'carol')
+  await enterCode(page)
+  await expect(page).toHaveURL(/#\/home$/)
+
+  await shown(page.getByRole('link', { name: 'Strategies', exact: true })).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Strategies' })).toBeVisible()
+  await page.getByRole('button', { name: 'Choose Gold trend, steady' }).click()
+  await expect(page.getByText(/^At most [\d,]+\.\d\d EUR on this account\./)).toBeVisible()
+  await page.getByLabel(/^Budget/).fill('99999')
+  await page.getByRole('button', { name: 'Check' }).click()
+  await expect(page.getByText('It would not start')).toBeVisible()
+  await page.getByLabel(/^Budget/).fill('2000')
+  await page.getByRole('button', { name: 'Check' }).click()
+  await expect(page.getByText('It would start')).toBeVisible()
+  await page.getByRole('button', { name: 'Start Gold trend, steady' }).click()
+  await expect(page.getByText(/^Gold trend, steady is trading for you with 2,000\.00 EUR\./)).toBeVisible()
+
+  const running = page.getByRole('region', { name: 'Trading for you' })
+  await expect(running.getByText('Gold trend steady')).toBeVisible()
+  await running.getByRole('button', { name: 'Stop Gold trend steady' }).click()
+  await running.getByRole('group', { name: 'Stop Gold trend steady?' }).getByRole('button', { name: 'Stop it' }).click()
+  await expect(running.getByText('Gold trend steady')).toHaveCount(0)
+})
+
 test('the API key stays for the owner, under Advanced', async ({ page }) => {
   await page.goto('#/signin')
   await page.getByText('Advanced').click()

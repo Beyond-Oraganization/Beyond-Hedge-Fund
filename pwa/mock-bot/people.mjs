@@ -21,15 +21,17 @@ const PEOPLE = () => [
 ]
 
 // The real bot's table: each command's lowest role (client < staff < owner); one it does not know is the owner's alone.
-const BRANCHES = new Set(['market', 'candles', 'indicators', 'trading', 'orders', 'people', 'fund', 'clients', 'cashflows'])
+const BRANCHES = new Set(['market', 'candles', 'indicators', 'trading', 'orders', 'people', 'fund', 'clients', 'cashflows', 'menu'])
 const RANK = { client: 0, staff: 1, owner: 2 }
 const RULES = {
   help: 'client', me: 'client', signin: 'client', signout: 'client', portfolio: 'client', activity: 'client',
+  'menu list': 'client', 'session strategies': 'client', 'trading start': 'client', 'trading check': 'client', 'trading stop': 'client',
+  'menu add': 'owner', 'menu change': 'owner', 'menu withdraw': 'owner', 'clients limits': 'staff',
   accounts: 'client', use: 'client', balance: 'client', positions: 'client', 'trading status': 'client', 'orders list': 'client',
   status: 'staff', audit: 'staff', login: 'staff', logout: 'staff', session: 'staff',
   'market list': 'staff', 'market add': 'staff', 'market sync': 'staff', 'candles show': 'staff', 'candles export': 'staff', 'candles oldest': 'staff',
   'indicators show': 'staff', strategies: 'staff', signal: 'staff', backtest: 'staff', backtests: 'staff', kelly: 'staff',
-  'trading start': 'staff', 'trading stop': 'staff', 'trading check': 'staff', 'trading minimum': 'staff', 'orders place': 'staff', 'orders close': 'staff',
+  'trading minimum': 'staff', 'orders place': 'staff', 'orders close': 'staff',
   'fund accounts': 'staff', 'fund overview': 'staff', 'cashflows list': 'staff', 'cashflows add': 'staff', 'clients list': 'staff', 'clients add': 'staff', 'clients link': 'staff', 'clients unlink': 'staff',
   register: 'owner', credentials: 'owner', 'market remove': 'owner', 'orders clear': 'owner', 'fund manage': 'owner', 'fund unmanage': 'owner',
 }
@@ -40,6 +42,7 @@ function key(args) {
   const [first, second] = args
   if (first === undefined) return null
   if (['--help', '-h', '--version', '-v', 'help'].includes(first)) return 'help'
+  if (first === 'session' && second === 'strategies') return 'session strategies'
   if (!BRANCHES.has(first)) return first
   return second !== undefined && !second.startsWith('-') ? `${first} ${second}` : 'help'
 }
@@ -77,6 +80,20 @@ export function createPeople() {
     refusal(person, args) {
       if (person.role === 'owner') return null
       const k = key(args)
+      // A client starts and checks only from the menu (CommandPolicy's ClientOptions).
+      if (person.role === 'client' && (k === 'trading start' || k === 'trading check')) {
+        const usage = k === 'trading start' ? 'trading start --setup <ID> [--budget AMOUNT] [--name NAME] [--live]' : 'trading check --setup <ID> [--budget AMOUNT] [--name NAME] --json'
+        const values = ['--setup', '--budget', '--name', '-n'], flags = k === 'trading start' ? ['--live', '--json'] : ['--json']
+        let given = false
+        for (let i = 2; i < args.length; i++) {
+          const name = args[i].split('=')[0]
+          if (values.includes(name)) {
+            given ||= name === '--setup'
+            if (!args[i].includes('=')) i++
+          } else if (!flags.includes(args[i])) return `A client starts strategies from the fund's menu, with nothing else: ${usage}. '${args[i]}' is not one of those.`
+        }
+        if (!given) return `A client starts strategies from the fund's menu: ${usage}.`
+      }
       const lowest = RULES[k]
       if (lowest && RANK[person.role] >= RANK[lowest]) return null
       if (!lowest) return `'${k ?? args[0]}' is not a command you can run.`

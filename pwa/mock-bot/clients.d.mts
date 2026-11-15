@@ -4,6 +4,7 @@ type Answer = Omit<CommandResult, 'command' | 'elapsedMs' | 'ok' | 'account' | '
 
 export type MockClients = {
   accountsOf(login: string): string[]
+  clientOf(login: string): number | null
   run(args: string[]): Answer
 }
 
