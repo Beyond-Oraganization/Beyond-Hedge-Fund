@@ -11,7 +11,6 @@ import type { PositionSnapshot, SessionSnapshot } from '../api/types.ts'
 import { FailurePanel, RawAnswer } from '../components/Answer.tsx'
 import { DataTable } from '../components/DataTable.tsx'
 import { ConfirmSheet } from '../components/Sheet.tsx'
-import { Ticker } from '../components/Ticker.tsx'
 import { toast } from '../components/Toasts.tsx'
 import { Button, ButtonLink, Callout, EmptyState, Figure, MoreLink, Pill, Section, Skeleton, StatTile } from '../components/ui.tsx'
 import { arrow, fmtBytes, fmtClock, fmtDuration, fmtElapsed, fmtMoney, fmtNumber, fmtPrice, fmtRelative, fmtSignedMoney, fmtSignedPercent, fmtTime, tone } from '../format.ts'
@@ -62,21 +61,15 @@ function AccountBand({ snapshot, updatedAt }: { snapshot: SessionSnapshot; updat
           </Callout>
         </div>
       ) : null}
-      <p className="foot" style={{ marginTop: 20 }}>
-        session --json · updated {fmtClock(updatedAt)} UTC ({fmtDuration((now - updatedAt) / 1000)} ago) · prices refresh while the app watches
+      <p className="updated" style={{ marginTop: 20 }}>
+        Updated {fmtClock(updatedAt)} UTC ({fmtDuration((now - updatedAt) / 1000)} ago)
       </p>
+      <details className="foot">
+        <summary>Details</summary>
+        <p>session --json · prices refresh while the app watches</p>
+      </details>
     </Section>
   )
-}
-
-function tickerItems(snapshot: SessionSnapshot): string[] {
-  const a = snapshot.account
-  return [
-    `Equity ${fmtMoney(a.equity, a.currency)}`,
-    ...snapshot.positions.map((p) => `${p.symbol} ${p.side} ${fmtNumber(p.quantity)} ${p.isPending ? 'pending' : signedMoney(p.unrealizedProfit, p.profitCurrency)}`),
-    ...snapshot.strategies.map((s) => `${s.strategy} ${marketLabel(s.market)} next ${fmtClock(parseIso(s.nextTickAt)).slice(0, 5)}`),
-    `Realized ${fmtSignedMoney(snapshot.stats.realizedProfit, a.currency)}`,
-  ]
 }
 
 function Positions({ snapshot }: { snapshot: SessionSnapshot }) {
@@ -227,10 +220,13 @@ function SystemStrip({ snapshot }: { snapshot: SessionSnapshot }) {
   const latency = parseTimeSpan(sys.broker.lastLatency)
   return (
     <Section variant="alt" label="System">
-      <div className="section-title">
-        <h2 className="h2">System</h2>
-        <MoreLink to="/system">Details</MoreLink>
-      </div>
+      <details className="system-details">
+        <summary>
+          <h2 className="h3">System</h2>
+        </summary>
+        <p style={{ margin: '12px 0' }}>
+          <MoreLink to="/system">The bot’s health check</MoreLink>
+        </p>
       <dl className="dl">
         <dt>Broker</dt>
         <dd>{sys.broker.isConnected ? `connected${latency != null ? `, ${fmtElapsed(latency * 1000)}` : ''}` : `disconnected${sys.broker.lastError ? `: ${sys.broker.lastError}` : ''}`}</dd>
@@ -261,6 +257,7 @@ function SystemStrip({ snapshot }: { snapshot: SessionSnapshot }) {
           {fmtBytes(sys.managedMemoryBytes)} managed, {fmtBytes(sys.workingSetBytes)} working set
         </dd>
       </dl>
+      </details>
     </Section>
   )
 }
@@ -371,7 +368,6 @@ export default function Session() {
   return (
     <>
       <AccountBand snapshot={snapshot} updatedAt={data.at} />
-      <Ticker items={tickerItems(snapshot)} />
       {error ? (
         <Section label="Refresh problem">
           {isOrderingBug(error.message) ? (

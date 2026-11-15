@@ -47,15 +47,6 @@ describe('every text colour reaches WCAG AA on its surface', () => {
     })
 })
 
-describe('text on the band is large text', () => {
-  // The band pair is checked at 3:1, which WCAG allows only from 24px (normal weight; Archivo Black is 400).
-  it('the ticker never draws its text below 24px', () => {
-    const css = readFileSync(new URL('./app.css', import.meta.url), 'utf8')
-    const font = /\.ticker-group\{[^}]*font:\s*400\s+clamp\((\d+)px/.exec(css)
-    expect(Number(font?.[1])).toBeGreaterThanOrEqual(24)
-  })
-})
-
 // The redesign's kit (docs/fund-app-redesign-plan.md, section 8): data sits on a paper surface. Text greys
 // (6–8) and status text (4–5) must read on paper, status text also on its own tints (badges, banners), and the
 // darkest shades on the brand background, where key figures stand.
