@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { sectionOf, sectionsFor } from './nav.ts'
 
 // Every screen the app has today, by its route.
-const SCREENS = ['/overview', '/', '/trading', '/clients', '/orders', '/markets', '/backtest', '/strategies', '/account', '/connections', '/console', '/system', '/settings', '/install']
+const SCREENS = ['/overview', '/', '/trading', '/clients', '/orders', '/markets', '/backtest', '/strategies', '/account', '/connections', '/console', '/people', '/managed', '/audit', '/system', '/settings', '/install']
 
 describe('the navigation, by role', () => {
   it('gives the owner Overview, Trading, Clients, Research and Admin, with every screen once', () => {
@@ -17,6 +17,9 @@ describe('the navigation, by role', () => {
     const routes = admin.items.map((item) => item.to)
     expect(routes).toContain('/system')
     expect(routes).toContain('/settings')
+    expect(routes).toContain('/audit')
+    expect(routes).toContain('/managed')
+    expect(routes).not.toContain('/people')
     expect(routes).not.toContain('/console')
     expect(routes).not.toContain('/connections')
     expect(routes).not.toContain('/account')

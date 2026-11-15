@@ -54,6 +54,17 @@ Code is in `pwa/src/features/overview/`. The mock bot's overview (`pwa/mock-bot/
 
 Code is in `pwa/src/features/trading/`.
 
+**Admin: people, managed accounts and the audit log.**
+- **People** (the owner's) lists everyone who signs in, their role and how far their sign-in got.
+  - The owner adds a person. The app makes a temporary password and shows it once, to hand over.
+  - The owner changes a role, disables and enables someone, resets a code app (a lost phone), or gives a new temporary password.
+  - Each change runs at once, without asking first, since each can be undone, and goes in the audit log.
+  - The owner can't demote or disable themselves here.
+- **Managed accounts** lists the accounts the trading process keeps open, whether each is open, and its client. The owner manages an account with its password once, or lets one go; staff see the list.
+- **Audit log** (staff and the owner) shows every change, refused ones and sign-ins, newest first, with passwords as `***`. It can be filtered by person.
+
+Code is in `pwa/src/features/admin/`. The mock bot adds people commands, `fund manage|unmanage` and its own audit log (`pwa/mock-bot/audit.mjs`).
+
 **Connecting a bot with its API key** (the owner, under *Advanced* on the sign-in screen). On the bot's server, allow the app's origin and restart the bot:
 
 ```sh
