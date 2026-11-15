@@ -41,7 +41,7 @@ function show() {
       <MemoryRouter initialEntries={['/signin']}>
         <Routes>
           <Route path="/signin" element={<SignIn />} />
-          <Route path="/" element={<p>Home screen</p>} />
+          <Route path="/overview" element={<p>Overview screen</p>} />
           <Route path="/home" element={<p>Client home screen</p>} />
           <Route path="/connect" element={<p>Connect with a key</p>} />
         </Routes>
@@ -73,7 +73,7 @@ describe('SignIn', () => {
     await user.type(await screen.findByLabelText('6-digit code'), '123456')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByText('Home screen')).toBeInTheDocument()
+    expect(await screen.findByText('Overview screen')).toBeInTheDocument()
     const { connection, token } = active()
     expect(connection.person).toMatchObject({ login: 'sam', name: 'Sam Example', role: 'staff' })
     expect(connection.url).toBe(SERVER)
@@ -98,7 +98,7 @@ describe('SignIn', () => {
     await user.type(screen.getByLabelText('6-digit code'), '654321')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByText('Home screen')).toBeInTheDocument()
+    expect(await screen.findByText('Overview screen')).toBeInTheDocument()
     expect(active().connection.person?.login).toBe('newbie')
   })
 
@@ -120,7 +120,7 @@ describe('SignIn', () => {
     await user.clear(screen.getByLabelText('6-digit code'))
     await user.type(screen.getByLabelText('6-digit code'), '123456')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
-    expect(await screen.findByText('Home screen')).toBeInTheDocument()
+    expect(await screen.findByText('Overview screen')).toBeInTheDocument()
   })
 
   it('without Remember me, keeps the sign-in for this visit only', async () => {

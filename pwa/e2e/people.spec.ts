@@ -34,7 +34,7 @@ test('staff sign in with a password and a code, see their role’s screens, and 
   await expect(page.getByText('Invalid code.')).toBeVisible()
   await enterCode(page)
 
-  await expect(page.getByText('Equity', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible()
   if (isMobile) {
     await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Admin' }).click()
     const admin = page.getByRole('navigation', { name: 'Admin screens' })
@@ -64,7 +64,7 @@ test('a first sign-in chooses a password and adds the code app', async ({ page }
   await expect(page.getByRole('heading', { name: 'Add the fund to your code app' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Open in your code app' })).toHaveAttribute('href', /^otpauth:\/\/totp\//)
   await enterCode(page)
-  await expect(page.getByText('Equity', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible()
 })
 
 test('a client starts at Home, sees their money and what happened, and stays in their own places', async ({ page }) => {
@@ -94,7 +94,7 @@ test('a client starts at Home, sees their money and what happened, and stays in 
 test('staff open a client, see what the client sees, and link and unlink their account', async ({ page }) => {
   await signIn(page, 'sam')
   await enterCode(page)
-  await expect(page.getByText('Equity', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible()
 
   await shown(page.getByRole('link', { name: 'Clients', exact: true })).click()
   await expect(page).toHaveURL(/#\/clients$/)

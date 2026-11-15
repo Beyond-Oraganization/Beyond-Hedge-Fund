@@ -9,7 +9,7 @@ import type { PersonRole } from '../state/connections.ts'
 export type Role = PersonRole
 
 export type NavItem = { to: string; label: string; end?: boolean }
-export type NavSection = { id: 'trading' | 'clients' | 'research' | 'admin' | 'home' | 'activity' | 'account'; label: string; icon: IconName; items: NavItem[] }
+export type NavSection = { id: 'overview' | 'trading' | 'clients' | 'research' | 'admin' | 'home' | 'activity' | 'account'; label: string; icon: IconName; items: NavItem[] }
 
 /** A person's own sign-in: who they are, and signing out. */
 const YOUR_SIGN_IN: NavItem = { to: '/me', label: 'Your sign-in' }
@@ -31,6 +31,9 @@ const TRADING: NavSection = {
     { to: '/orders', label: 'Orders' },
   ],
 }
+
+/** The fund at a glance (plan, section 7): staff's and the owner's first place. */
+const OVERVIEW: NavSection = { id: 'overview', label: 'Overview', icon: 'overview', items: [{ to: '/overview', label: 'Overview' }] }
 
 /** The fund's clients (plan, section 7): staff and the owner set them up and see what each sees. */
 const CLIENTS: NavSection = { id: 'clients', label: 'Clients', icon: 'people', items: [{ to: '/clients', label: 'Clients' }] }
@@ -62,7 +65,7 @@ const ADMIN_ITEMS: (NavItem & { ownerOnly?: boolean })[] = [
 export function sectionsFor(role: Role, { person = false } = {}): NavSection[] {
   if (role === 'client') return CLIENT
   const admin = ADMIN_ITEMS.filter((item) => role === 'owner' || !item.ownerOnly).map(({ to, label }) => ({ to, label }))
-  return [TRADING, CLIENTS, RESEARCH, { id: 'admin', label: 'Admin', icon: 'settings', items: person ? [YOUR_SIGN_IN, ...admin] : admin }]
+  return [OVERVIEW, TRADING, CLIENTS, RESEARCH, { id: 'admin', label: 'Admin', icon: 'settings', items: person ? [YOUR_SIGN_IN, ...admin] : admin }]
 }
 
 const matches = (item: NavItem, path: string) => (item.end ? path === item.to : path === item.to || path.startsWith(`${item.to}/`))

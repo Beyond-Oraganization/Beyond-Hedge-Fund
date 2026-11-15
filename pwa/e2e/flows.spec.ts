@@ -169,19 +169,20 @@ test('backtests with a fixed amount, and shows the sizing and this run’s Kelly
   await expect(figures.locator('dt', { hasText: 'Kelly of this run' })).toBeVisible()
 })
 
-test('starts a session sized by Kelly after confirming it, names the backtest behind it, and shows the bot’s refusal without an edge', async ({ page }) => {
+test('starts a session sized by Kelly after confirming it, names the backtest behind it, and shows the bot’s refusal without an edge before anything opens', async ({ page }) => {
   await connected(page)
   await page.goto('#/trading')
   await expect(page.getByRole('heading', { name: '1 strategy trading.' })).toBeVisible()
   await page.getByRole('combobox', { name: 'Position sizing' }).selectOption('kelly')
+  // The check before starting (trading check) refuses it at once: nothing opens.
   await page.getByRole('button', { name: 'Start trading' }).click()
-  await expect(page.getByRole('dialog').getByText('Kelly: the full Kelly percent of the balance, from a backtest of this setup')).toBeVisible()
-  await page.getByRole('dialog').getByRole('button', { name: 'Start trading' }).click()
-  await expect(page.getByRole('dialog').getByRole('alert')).toContainText(/Kelly sizing cannot use backtest #\d+: .*no edge/)
-  await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click()
+  await expect(page.getByText(/Kelly sizing cannot use backtest #\d+: .*no edge/)).toBeVisible()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
   // The default rules have no edge on the mock's candles; opening on a deeper band has one.
   await page.getByRole('group', { name: 'Rule 1' }).getByRole('spinbutton').fill('2')
   await page.getByRole('button', { name: 'Start trading' }).click()
+  await expect(page.getByRole('dialog').getByText('Kelly: the full Kelly percent of the balance, from a backtest of this setup')).toBeVisible()
+  await expect(page.getByText(/Kelly sizing cannot use backtest/)).toHaveCount(0)
   await page.getByRole('dialog').getByRole('button', { name: 'Start trading' }).click()
   await expect(page.getByRole('heading', { name: '2 strategies trading.' })).toBeVisible()
   const card = page.locator('li', { hasText: 'drcs 2 · drcs' })
@@ -317,7 +318,7 @@ for (const theme of ['classic', 'light'] as const) {
   test(`every screen passes axe (${theme} theme)`, async ({ page }) => {
     if (theme === 'light') await page.addInitScript(() => localStorage.setItem('beyondia-theme', 'light'))
     await connected(page)
-    for (const route of ['', 'trading', 'markets', 'markets/XAUUSD/1h', 'backtest', 'orders', 'strategies', 'console', 'system', 'settings', 'account', 'connections', 'install', 'connect', 'signin', 'me', 'home', 'activity', 'clients', 'clients/1', 'clients/1/view']) {
+    for (const route of ['', 'trading', 'markets', 'markets/XAUUSD/1h', 'backtest', 'orders', 'strategies', 'console', 'system', 'settings', 'account', 'connections', 'install', 'connect', 'signin', 'me', 'home', 'activity', 'overview', 'clients', 'clients/1', 'clients/1/view']) {
       await page.goto(`#/${route}`)
       // The screen being left can stay in the page, hidden, while the next one loads: wait for a visible heading.
       await page.locator('main h1').filter({ visible: true }).first().waitFor()
