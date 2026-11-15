@@ -21,6 +21,8 @@ const Account = lazy(() => import('./screens/Account.tsx'))
 const Connect = lazy(() => import('./screens/Connect.tsx'))
 const Connections = lazy(() => import('./screens/Connections.tsx'))
 const Install = lazy(() => import('./screens/Install.tsx'))
+// The design kit's page: development builds only; a production build has neither the route nor its chunk.
+const DesignPage = import.meta.env.DEV ? lazy(() => import('./shared/ui/DesignPage.tsx')) : null
 
 const page = (node: ReactNode) => (
   <Suspense
@@ -56,6 +58,7 @@ const router = createHashRouter([
       { path: 'connect', element: page(<Connect />) },
       { path: 'connections', element: page(<Connections />) },
       { path: 'install', element: page(<Install />) },
+      ...(DesignPage ? [{ path: 'design', element: page(<DesignPage />) }] : []),
       { path: '*', element: <NotFound /> },
     ],
   },

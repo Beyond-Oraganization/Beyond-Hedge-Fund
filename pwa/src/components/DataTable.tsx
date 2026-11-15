@@ -25,6 +25,7 @@ export function DataTable<T>({
   mode = 'cards',
   actions,
   maxHeight,
+  surface,
 }: {
   columns: Column<T>[]
   rows: T[]
@@ -33,6 +34,8 @@ export function DataTable<T>({
   mode?: 'cards' | 'scroll'
   actions?: (row: T) => ReactNode
   maxHeight?: boolean
+  /** `paper`: the redesign's look (src/styles/kit.css), a paper surface with 2 px rules. */
+  surface?: 'paper'
 }) {
   const titleColumn = columns.find((column) => column.card === 'title') ?? columns[0]
   const subColumn = columns.find((column) => column.card === 'sub')
@@ -40,7 +43,7 @@ export function DataTable<T>({
 
   return (
     <>
-      <div className={cx('tbl-wrap', mode === 'cards' && 'as-cards', maxHeight && 'tbl-scroll')}>
+      <div className={cx('tbl-wrap', mode === 'cards' && 'as-cards', maxHeight && 'tbl-scroll', surface === 'paper' && 'k-table')}>
         <table className="tbl">
           {caption ? <caption>{caption}</caption> : null}
           <thead>
