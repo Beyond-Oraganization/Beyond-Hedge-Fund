@@ -145,13 +145,27 @@ export const cmd = {
    * session of that name is replaced); without one the bot names it after the strategy. On a live account, `live`
    * confirms trading real money (--live) after the app's own confirmation.
    */
-  tradingStart: (input: StrategyInput, live = false, name?: string | null) => [
+  tradingStart: (input: StrategyInput, live = false, name?: string | null, budget?: number | null) => [
     'trading',
     'start',
     ...strategyArgs(input),
     ...sizingArgs(input),
     ...(name ? ['--name', name] : []),
+    ...(budget != null ? ['--budget', plainNumber(budget)] : []),
     ...(live ? ['--live'] : []),
+  ],
+  /**
+   * What a start would trade with, without starting (bot 2.4.0): with a budget, its room and whether the balance carries it.
+   * `name` is the session a start would replace, whose budget is not counted.
+   */
+  tradingCheck: (input: StrategyInput, name?: string | null, budget?: number | null) => [
+    'trading',
+    'check',
+    ...strategyArgs(input),
+    ...sizingArgs(input),
+    ...(name ? ['--name', name] : []),
+    ...(budget != null ? ['--budget', plainNumber(budget)] : []),
+    '--json',
   ],
   tradingStop: (symbol?: string, interval?: string) => ['trading', 'stop', ...(symbol ? [symbol] : []), ...(symbol && interval ? [interval] : [])],
   /** Stops one session by name. */

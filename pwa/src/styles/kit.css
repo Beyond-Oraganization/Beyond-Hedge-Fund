@@ -143,3 +143,9 @@
 .k-grow{flex:1 1 220px;min-width:0}
 .k-row:has(.k-grow){align-items:end}
 .k-linked{grid-template-columns:minmax(0,1fr) auto!important;align-items:center!important}
+
+/* the staff's Overview (src/features/overview) */
+.k-totals{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:var(--k-sp-4)}
+.k-alert{grid-template-columns:auto minmax(0,1fr) auto!important;align-items:center!important}
+.k-alert-link{font:600 var(--k-fs-s)/1.4 var(--f-r);text-decoration:underline;text-underline-offset:3px;white-space:nowrap}
+@media (max-width:600px){.k-alert{grid-template-columns:auto minmax(0,1fr)!important}.k-alert-link{grid-column:2}}

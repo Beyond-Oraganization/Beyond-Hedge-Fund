@@ -25,7 +25,7 @@ describe('BottomNav (phones)', () => {
   it('has one tab per section, and marks the section of a screen deep inside it', () => {
     at('/markets/XAUUSD/1h', <BottomNav sections={sections} />)
     const nav = screen.getByRole('navigation', { name: 'Sections' })
-    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Trading', 'Clients', 'Research', 'Admin'])
+    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Overview', 'Trading', 'Clients', 'Research', 'Admin'])
     expect(within(nav).getByRole('link', { name: 'Research' })).toHaveAttribute('aria-current', 'page')
     expect(within(nav).getByRole('link', { name: 'Trading' })).not.toHaveAttribute('aria-current')
   })
