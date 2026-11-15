@@ -8,6 +8,7 @@ export type MockPeople = {
   authenticate(bearer: string | null): { person: Person; session: unknown; token: string } | null
   refusal(person: Person, args: string[]): string | null
   accountsOf(person: Person): string[]
+  roleOf(login: string): Person['role'] | null
   signin(args: string[]): Answer
   me(caller: Caller, args: string[]): Answer
   signout(caller: Caller, args: string[]): Answer

@@ -16,7 +16,7 @@ function valuedWhen(at: string, now = Date.now()) {
   return at.slice(0, 10) === new Date(now).toISOString().slice(0, 10) ? `${time} today` : `${shortDate(at)}, ${time}`
 }
 
-function AccountValue({ account, named }: { account: AccountPortfolio; named: boolean }) {
+export function AccountValue({ account, named }: { account: AccountPortfolio; named: boolean }) {
   const currency = account.currency ?? ''
   if (account.value == null)
     return (
@@ -56,41 +56,58 @@ function AccountValue({ account, named }: { account: AccountPortfolio; named: bo
 }
 
 /**
+ * What a client sees on Home: their accounts' value and returns, then the latest of what happened. `only` limits it to
+ * some accounts (staff viewing as a client, who reach every managed account themselves); `preview` leaves out the link
+ * to the client's Activity, which is the client's place, not staff's.
+ */
+export function HomeView({ only, preview = false }: { only?: string[]; preview?: boolean }) {
+  const portfolio = usePortfolio()
+  // Staff reach every account: read more, then keep the client's.
+  const activity = useActivity(only ? 50 : 5)
+  const mine = <T extends { login?: string; account?: string }>(items: T[]) => (only ? items.filter((item) => only.includes(item.login ?? item.account ?? '')) : items)
+  const currencyOf = (login: string) => (portfolio.data?.parsed.ok ? (portfolio.data.parsed.value.find((a) => a.login === login)?.currency ?? null) : null)
+
+  return (
+    <>
+      <ClientRead query={portfolio} what="portfolio">
+        {(all) => {
+          const accounts = mine(all)
+          return accounts.length === 0 ? (
+            <Card>
+              <EmptyState title="No account is linked to you yet">The fund links your account at the broker for you. It shows here once it is linked.</EmptyState>
+            </Card>
+          ) : (
+            accounts.map((account) => <AccountValue key={account.login} account={account} named={accounts.length > 1} />)
+          )
+        }}
+      </ClientRead>
+      <Card title="Latest" actions={preview ? null : <ButtonLink to="/activity" variant="quiet">All activity</ButtonLink>}>
+        <ClientRead query={activity} what="activity">
+          {(all) => {
+            const items = mine(all).slice(0, 3)
+            return items.length ? (
+              <ActivityList items={items} currencyOf={currencyOf} stamp="day" />
+            ) : (
+              <p className="k-hint">Nothing has happened on your account yet. Trades, deposits and strategies show here.</p>
+            )
+          }}
+        </ClientRead>
+      </Card>
+    </>
+  )
+}
+
+/**
  * A client's Home (docs/fund-app-redesign-plan.md, section 7): one answer first, what the money is worth and how it did,
  * with deposits left out of the returns and marked on the chart; then the latest of what happened.
  */
 export default function Home() {
   useTitle('Home')
-  const portfolio = usePortfolio()
-  const activity = useActivity(5)
-  const currencyOf = (login: string) => portfolio.data?.parsed.ok ? (portfolio.data.parsed.value.find((a) => a.login === login)?.currency ?? null) : null
-
   return (
     <Section>
       <div className="k-demo k-narrow">
         <h1 className="vh">Home</h1>
-        <ClientRead query={portfolio} what="portfolio">
-          {(accounts) =>
-            accounts.length === 0 ? (
-              <Card>
-                <EmptyState title="No account is linked to you yet">The fund links your account at the broker for you. It shows here once it is linked.</EmptyState>
-              </Card>
-            ) : (
-              accounts.map((account) => <AccountValue key={account.login} account={account} named={accounts.length > 1} />)
-            )
-          }
-        </ClientRead>
-        <Card title="Latest" actions={<ButtonLink to="/activity" variant="quiet">All activity</ButtonLink>}>
-          <ClientRead query={activity} what="activity">
-            {(items) =>
-              items.length ? (
-                <ActivityList items={items.slice(0, 3)} currencyOf={currencyOf} stamp="day" />
-              ) : (
-                <p className="k-hint">Nothing has happened on your account yet. Trades, deposits and strategies show here.</p>
-              )
-            }
-          </ClientRead>
-        </Card>
+        <HomeView />
       </div>
     </Section>
   )

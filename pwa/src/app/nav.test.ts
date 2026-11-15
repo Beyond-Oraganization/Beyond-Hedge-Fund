@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { sectionOf, sectionsFor } from './nav.ts'
 
 // Every screen the app has today, by its route.
-const SCREENS = ['/', '/trading', '/orders', '/markets', '/backtest', '/strategies', '/account', '/connections', '/console', '/system', '/settings', '/install']
+const SCREENS = ['/', '/trading', '/clients', '/orders', '/markets', '/backtest', '/strategies', '/account', '/connections', '/console', '/system', '/settings', '/install']
 
 describe('the navigation, by role', () => {
-  it('gives the owner Trading, Research and Admin, with every screen once', () => {
+  it('gives the owner Trading, Clients, Research and Admin, with every screen once', () => {
     const sections = sectionsFor('owner')
-    expect(sections.map((section) => section.label)).toEqual(['Trading', 'Research', 'Admin'])
+    expect(sections.map((section) => section.label)).toEqual(['Trading', 'Clients', 'Research', 'Admin'])
     const routes = sections.flatMap((section) => section.items.map((item) => item.to))
     expect([...routes].sort()).toEqual([...SCREENS].sort())
   })
@@ -32,6 +32,9 @@ describe('which section a screen belongs to', () => {
     ['/markets', 'research'],
     ['/markets/XAUUSD/1h', 'research'],
     ['/backtest', 'research'],
+    ['/clients', 'clients'],
+    ['/clients/3', 'clients'],
+    ['/clients/3/view', 'clients'],
     ['/connections', 'admin'],
     ['/system', 'admin'],
   ])('%s is in %s', (path, id) => {
