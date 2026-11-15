@@ -156,7 +156,8 @@ describe('Activity', () => {
 
     const today = await screen.findByRole('region', { name: 'Today' })
     expect(within(today).getByText('Closed XAUUSD buy 2 at a gain of 84.10')).toBeInTheDocument()
-    expect(within(today).getByText(/\+84\.10 EUR/)).toBeInTheDocument()
+    // The currency comes with the portfolio, which may answer after the activity.
+    expect(await within(today).findByText(/\+84\.10 EUR/)).toBeInTheDocument()
     const yesterday = screen.getByRole('region', { name: 'Yesterday' })
     expect(within(yesterday).getByText(/-12\.40 EUR/)).toBeInTheDocument()
     expect(screen.getByText('Deposit: Second transfer')).toBeInTheDocument()
