@@ -112,7 +112,7 @@ function SignInForm({ givenLogin }: { givenLogin: string }) {
                 <label htmlFor={`${id}-server`}>Server</label>
                 <input id={`${id}-server`} className="k-input" type="url" inputMode="url" autoComplete="url" spellCheck={false} value={server}
                   onChange={(event) => setServer(event.target.value)} placeholder="https://fund.example.com" />
-                <span className="k-hint">The fund gives you this address.</span>
+                <span className="k-hint">{import.meta.env.VITE_FUND_API ? 'Filled in for you: the fund’s server.' : 'The fund gives you this address.'}</span>
               </div>
               <div className="k-field">
                 <label htmlFor={`${id}-login`}>Login</label>
