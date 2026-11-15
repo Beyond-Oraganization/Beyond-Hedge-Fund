@@ -20,6 +20,7 @@ import { createPortfolio } from './portfolio.mjs'
 import { createClients } from './clients.mjs'
 import { overview } from './overview.mjs'
 import { createAudit } from './audit.mjs'
+import { createMenu } from './menu.mjs'
 
 export const DEFAULT_KEY = 'mock-bot-key-0123456789abcdef0123456789abcdef'
 const MAX_BODY = 4096
@@ -61,6 +62,7 @@ export function startServer({ port = 8443, key = DEFAULT_KEY, origins = '*', con
   let people = createPeople()
   let clients = createClients((login) => people.roleOf(login))
   let audit = createAudit()
+  let menu = createMenu({ clientOf: (login) => clients.clientOf(login) })
   // Person's login → their connection: what they may reach, kept between their commands.
   let personal = new Map()
   const allowed = (origin) => {
@@ -85,6 +87,7 @@ export function startServer({ port = 8443, key = DEFAULT_KEY, origins = '*', con
         people = createPeople()
         clients = createClients((login) => people.roleOf(login))
         audit = createAudit()
+        menu = createMenu({ clientOf: (login) => clients.clientOf(login) })
         personal = new Map()
         const given = Object.fromEntries(url.searchParams)
         const flag = (name) => (name in given ? given[name] === '1' || given[name] === 'true' : botOptions[name])
@@ -190,6 +193,18 @@ export function startServer({ port = 8443, key = DEFAULT_KEY, origins = '*', con
 
       // The fund's people (owner), audit log, clients and managed accounts.
       if (args[0] === 'people') return reply(people.manage(args))
+      // The strategy menu, clients' limits, and a start or check from the menu (turned into the bot's own arguments).
+      const person = caller.kind === 'person' ? caller.person : null
+      if (args[0] === 'menu' || (args[0] === 'clients' && args[1] === 'limits')) return reply(menu.run(args, person))
+      let menuCheck = null
+      if (args[0] === 'trading' && (args[1] === 'start' || args[1] === 'check') && args.some((a) => a === '--setup' || a.startsWith('--setup='))) {
+        const state = bot.state
+        const expanded = menu.expand(args, person, { balance: state.account.balance, currency: state.account.currency, sessions: [...state.sessions.keys()], live: false })
+        if (expanded.answer) return reply(expanded.answer)
+        if (expanded.check?.refusal && args[1] === 'start') return reply({ exitCode: 1, output: expanded.check.refusal, blocks: [], error: { message: expanded.check.refusal, hint: null }, json: null })
+        args = expanded.args
+        menuCheck = expanded.check
+      }
       if (args[0] === 'audit') return res.end(JSON.stringify({ command: describe(args), elapsedMs: 1, account: null, connection: null, ...audit.run(args), ok: true }))
       if (args[0] === 'clients' || (args[0] === 'fund' && ['accounts', 'manage', 'unmanage'].includes(args[1]))) return reply(clients.run(args))
       if (args[0] === 'fund' && args[1] === 'overview')
@@ -232,6 +247,11 @@ export function startServer({ port = 8443, key = DEFAULT_KEY, origins = '*', con
       if (caller.kind !== 'person' && !token && connection.accounts.length) {
         issued = randomBytes(32).toString('base64url')
         connections.set(issued, connection)
+      }
+      // A client's check from the menu: their limits' refusal first, and the largest budget they allow.
+      if (menuCheck && result.json && typeof result.json === 'object') {
+        result.json.largestBudget = menuCheck.largest
+        if (menuCheck.refusal) Object.assign(result.json, { wouldStart: false, refusal: menuCheck.refusal, text: `${menuCheck.refusal} ${result.json.text}` })
       }
       const answer = { command: describe(args), exitCode: result.exitCode, elapsedMs, output: result.output, blocks: result.blocks, error: result.error, json: result.json ?? null, ok: result.exitCode === 0, account: result.account ?? null, connection: issued }
       audit.record(args, caller, result)

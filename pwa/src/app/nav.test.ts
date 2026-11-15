@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { sectionOf, sectionsFor } from './nav.ts'
 
 // Every screen the app has today, by its route.
-const SCREENS = ['/overview', '/', '/trading', '/clients', '/orders', '/markets', '/backtest', '/strategies', '/account', '/connections', '/console', '/people', '/managed', '/audit', '/system', '/settings', '/install']
+const SCREENS = ['/overview', '/', '/trading', '/clients', '/orders', '/markets', '/backtest', '/strategies', '/account', '/connections', '/console', '/people', '/menu', '/managed', '/audit', '/system', '/settings', '/install']
 
 describe('the navigation, by role', () => {
   it('gives the owner Overview, Trading, Clients, Research and Admin, with every screen once', () => {
@@ -51,10 +51,10 @@ describe('which section a screen belongs to', () => {
 })
 
 describe('the navigation of people who sign in', () => {
-  it('gives a client Home, Activity and their Account, each a place of its own', () => {
+  it('gives a client Home, Strategies, Activity and their Account, each a place of its own', () => {
     const sections = sectionsFor('client', { person: true })
-    expect(sections.map((section) => section.label)).toEqual(['Home', 'Activity', 'Account'])
-    expect(sections.map((section) => section.items.map((item) => item.to))).toEqual([['/home'], ['/activity'], ['/me']])
+    expect(sections.map((section) => section.label)).toEqual(['Home', 'Strategies', 'Activity', 'Account'])
+    expect(sections.map((section) => section.items.map((item) => item.to))).toEqual([['/home'], ['/my-strategies'], ['/activity'], ['/me']])
   })
 
   it('adds a person’s own sign-in to Admin, and not for the API key', () => {

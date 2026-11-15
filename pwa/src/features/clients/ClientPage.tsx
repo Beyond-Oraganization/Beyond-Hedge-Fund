@@ -6,6 +6,7 @@ import { Badge, Banner, Button, ButtonLink, Card, EmptyState, PageHeader } from 
 import { AccountValue } from '../portfolio/Home.tsx'
 import { ClientRead } from '../portfolio/ClientRead.tsx'
 import { usePortfolio } from '../portfolio/portfolio.ts'
+import { LimitsCard } from '../menu/LimitsCard.tsx'
 import { readiness, useClients, useManaged, type Client } from './clients.ts'
 
 /** Runs one change to a client (link or unlink) and keeps the bot's refusal to show it in place. */
@@ -147,7 +148,7 @@ function WhatTheClientSees({ client }: { client: Client }) {
   )
 }
 
-/** One client (plan, section 7): what they see, their accounts and who signs in for them. Limits come with the strategy menu. */
+/** One client (plan, section 7): what they see, their accounts, who signs in for them, and what they may start (limits). */
 export default function ClientPage() {
   const { id } = useParams()
   const clients = useClients()
@@ -175,6 +176,7 @@ export default function ClientPage() {
                 <WhatTheClientSees client={client} />
                 <Accounts client={client} />
                 <People client={client} />
+                <LimitsCard client={client.id} />
               </>
             )
           }}

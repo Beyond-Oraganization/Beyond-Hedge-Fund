@@ -9,14 +9,15 @@ import type { PersonRole } from '../state/connections.ts'
 export type Role = PersonRole
 
 export type NavItem = { to: string; label: string; end?: boolean }
-export type NavSection = { id: 'overview' | 'trading' | 'clients' | 'research' | 'admin' | 'home' | 'activity' | 'account'; label: string; icon: IconName; items: NavItem[] }
+export type NavSection = { id: 'overview' | 'strategies' | 'trading' | 'clients' | 'research' | 'admin' | 'home' | 'activity' | 'account'; label: string; icon: IconName; items: NavItem[] }
 
 /** A person's own sign-in: who they are, and signing out. */
 const YOUR_SIGN_IN: NavItem = { to: '/me', label: 'Your sign-in' }
 
-/** A client's places, one screen each (plan, section 7). Strategies joins them with the strategy menu (step 16). */
+/** A client's places, one screen each (plan, section 7). */
 const CLIENT: NavSection[] = [
   { id: 'home', label: 'Home', icon: 'home', items: [{ to: '/home', label: 'Home' }] },
+  { id: 'strategies', label: 'Strategies', icon: 'strategies', items: [{ to: '/my-strategies', label: 'Strategies' }] },
   { id: 'activity', label: 'Activity', icon: 'orders', items: [{ to: '/activity', label: 'Activity' }] },
   { id: 'account', label: 'Account', icon: 'account', items: [{ to: '/me', label: 'Your account' }] },
 ]
@@ -51,6 +52,7 @@ const RESEARCH: NavSection = {
 
 const ADMIN_ITEMS: (NavItem & { ownerOnly?: boolean })[] = [
   { to: '/people', label: 'People', ownerOnly: true },
+  { to: '/menu', label: 'Strategy menu', ownerOnly: true },
   { to: '/managed', label: 'Managed accounts' },
   { to: '/audit', label: 'Audit log' },
   { to: '/account', label: 'Trading accounts', ownerOnly: true },
