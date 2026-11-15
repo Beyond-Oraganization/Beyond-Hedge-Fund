@@ -1,7 +1,6 @@
 // The mock bot's clients (Fund/Clients.cs, Cli/Commands/ClientCommands.cs and FundCommands.cs in Beyond-Bot-Bybit):
 // `clients list|add|link|unlink` and `fund accounts`, with the real bot's rules and messages. One client to start with:
 // "Carol Example", whom carol signs in for, holding the managed account "demo".
-const MANAGED = [{ login: 'demo', managedAt: '2026-11-01T09:00:00Z', open: true, broker: 'CTrader', mode: 'Demo', sessions: 1 }]
 
 const option = (args, name) => {
   const inline = args.find((a) => a.startsWith(`${name}=`))
@@ -14,6 +13,8 @@ const failed = (message, hint = null) => ({ exitCode: 1, output: message, blocks
 
 /** `roleOf(login)`: a person's role, or null when there is no such person. */
 export function createClients(roleOf, now = () => Date.now()) {
+  // The managed accounts (ManagedAccounts.cs): the mock's one trading account, managed from the start.
+  const MANAGED = [{ login: 'demo', managedAt: '2026-11-01T09:00:00Z', open: true, broker: 'CTrader', mode: 'Demo', sessions: 1 }]
   const clients = [{ id: 1, name: 'Carol Example', createdAt: '2026-11-01T09:05:00Z', people: ['carol'], accounts: ['demo'] }]
   let next = 2
 
@@ -57,6 +58,20 @@ export function createClients(roleOf, now = () => Date.now()) {
     run(args) {
       const asJson = args.includes('--json')
       if (args[0] === 'fund' && args[1] === 'accounts') return answer(MANAGED, MANAGED.map((m) => m.login).join('\n'), asJson)
+      if (args[0] === 'fund' && args[1] === 'manage') {
+        const login = args[2]?.toLowerCase()
+        const password = option(args, '--password')
+        // The mock's one trading account: demo / demo-password (bot.mjs).
+        if (login !== 'demo' || password !== 'demo-password') return failed('Invalid login or password.')
+        if (!MANAGED.some((m) => m.login === login)) MANAGED.push({ login, managedAt: new Date(now()).toISOString().replace(/\.\d+Z$/, 'Z'), open: true, broker: 'CTrader', mode: 'Demo', sessions: 1 })
+        return answer(null, `${login} (CTrader Demo) is managed: the trading process keeps it open, and opens it again after every restart without its password.`, false)
+      }
+      if (args[0] === 'fund' && args[1] === 'unmanage') {
+        const login = args[2]?.toLowerCase()
+        const at = MANAGED.findIndex((m) => m.login === login)
+        if (at >= 0) MANAGED.splice(at, 1)
+        return answer(null, `${args[2]} is not managed any more: it closes once nothing trades or holds it, and its strategies keep trading until stopped.`, false)
+      }
       switch (args[1]) {
         case 'list':
           return answer(clients.map(view), clients.length ? clients.map((c) => `${c.id} ${c.name}`).join('\n') : 'No client yet. Add one with: clients add <NAME>', asJson)

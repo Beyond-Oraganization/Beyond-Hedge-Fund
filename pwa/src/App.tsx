@@ -31,6 +31,10 @@ const Overview = lazy(() => import('./features/overview/Overview.tsx'))
 const ClientsList = lazy(() => import('./features/clients/ClientsList.tsx'))
 const ClientPage = lazy(() => import('./features/clients/ClientPage.tsx'))
 const ViewAsClient = lazy(() => import('./features/clients/ViewAsClient.tsx'))
+// The owner's and staff's Admin pages (plan, section 7).
+const People = lazy(() => import('./features/admin/People.tsx'))
+const Managed = lazy(() => import('./features/admin/Managed.tsx'))
+const Audit = lazy(() => import('./features/admin/Audit.tsx'))
 // The design kit's page: development builds only; a production build has neither the route nor its chunk.
 const DesignPage = import.meta.env.DEV ? lazy(() => import('./shared/ui/DesignPage.tsx')) : null
 
@@ -76,6 +80,9 @@ const router = createHashRouter([
       { path: 'clients', element: page(<ClientsList />) },
       { path: 'clients/:id', element: page(<ClientPage />) },
       { path: 'clients/:id/view', element: page(<ViewAsClient />) },
+      { path: 'people', element: page(<People />) },
+      { path: 'managed', element: page(<Managed />) },
+      { path: 'audit', element: page(<Audit />) },
       ...(DesignPage ? [{ path: 'design', element: page(<DesignPage />) }] : []),
       { path: '*', element: <NotFound /> },
     ],
