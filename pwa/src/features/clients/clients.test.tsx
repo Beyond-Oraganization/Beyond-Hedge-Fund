@@ -6,6 +6,7 @@ import { setupServer } from 'msw/node'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createClients, type MockClients } from '../../../mock-bot/clients.mjs'
+import { createMenu, type MockMenu } from '../../../mock-bot/menu.mjs'
 import { createPeople } from '../../../mock-bot/people.mjs'
 import { createPortfolio } from '../../../mock-bot/portfolio.mjs'
 import { queryClient } from '../../api/bot.ts'
@@ -22,6 +23,7 @@ import ViewAsClient from './ViewAsClient.tsx'
  */
 const BOT_URL = 'https://fund.test:8443'
 let clients: MockClients
+let menu: MockMenu
 let sent: string[][] = []
 
 const server = setupServer(
@@ -29,7 +31,7 @@ const server = setupServer(
     const { args } = (await request.json()) as { args: string[] }
     sent.push(args)
     const fund = createPortfolio(() => Date.now())
-    const answer = args[0] === 'portfolio' ? fund.portfolio(args) : args[0] === 'activity' ? fund.activity(args) : clients.run(args)
+    const answer = args[0] === 'portfolio' ? fund.portfolio(args) : args[0] === 'activity' ? fund.activity(args) : args[0] === 'menu' || args[1] === 'limits' ? menu.run(args) : clients.run(args)
     return HttpResponse.json({ command: args.join(' '), elapsedMs: 3, ok: answer.exitCode === 0, account: null, connection: null, ...answer } satisfies CommandResult)
   }),
 )
@@ -54,6 +56,7 @@ function show(path: string) {
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 beforeEach(() => {
   clients = createClients(createPeople().roleOf)
+  menu = createMenu({ clientOf: (login) => clients.clientOf(login) })
   sent = []
 })
 afterEach(() => {

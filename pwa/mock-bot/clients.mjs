@@ -52,6 +52,9 @@ export function createClients(roleOf, now = () => Date.now()) {
   }
 
   return {
+    /** The client a person signs in for, or null. */
+    clientOf: (login) => clients.find((c) => c.people.includes(login))?.id ?? null,
+
     /** The accounts a client person reaches: their client's. */
     accountsOf: (login) => clients.find((c) => c.people.includes(login))?.accounts ?? [],
 

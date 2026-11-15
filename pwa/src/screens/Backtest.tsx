@@ -14,7 +14,7 @@ import { DataTable } from '../components/DataTable.tsx'
 import { describedBy, Field, Segmented } from '../components/Field.tsx'
 import { ScreenHead } from '../components/ScreenHead.tsx'
 import { StrategyForm } from '../components/StrategyForm.tsx'
-import { Button, Callout, EmptyState, Section, Skeleton } from '../components/ui.tsx'
+import { Button, ButtonLink, Callout, EmptyState, Section, Skeleton } from '../components/ui.tsx'
 import { readCopy, updateCopy, type CopyInfo } from '../data/candles.ts'
 import { useEngine, useEngineVersion } from '../engine/context.ts'
 import { EngineCancelled } from '../engine/engine.ts'
@@ -22,6 +22,7 @@ import type { PathMethod } from '../engine/types.ts'
 import { fmtCount, fmtMoney, fmtPercent, fmtSignedMoney, fmtSignedPercent, fmtTime, tone } from '../format.ts'
 import { useMarkets, useStatus, useStrategies } from '../hooks/data.ts'
 import { keepsEverything } from '../storage/local-store.ts'
+import { offerLink } from '../features/menu/menu.ts'
 import { applySetup, configFromInput, initialConfig, toInput, validateConfig, type StrategyConfig } from '../strategy/config.ts'
 
 const dateOrNull = (text: string) => (text ? Date.parse(`${text}T00:00:00Z`) : null)
@@ -67,6 +68,8 @@ export default function Backtest() {
   const engine = useEngine()
   const engineVersion = useEngineVersion()
   const { connection } = useBot()
+  // The owner offers a backtested setup to clients (the API key acts as the owner).
+  const owner = (connection?.person?.role ?? 'owner') === 'owner'
   const [params] = useSearchParams()
   const [edited, setDraft] = useState<StrategyConfig | null>(null)
   const [balance, setBalance] = useState('1000')
@@ -401,6 +404,11 @@ export default function Backtest() {
                   >
                     Use
                   </Button>
+                  {owner ? (
+                    <ButtonLink compact variant="ghost" to={offerLink(run.input)}>
+                      Offer to clients
+                    </ButtonLink>
+                  ) : null}
                   <label className="check small">
                     <input
                       type="checkbox"

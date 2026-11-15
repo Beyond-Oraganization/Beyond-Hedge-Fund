@@ -65,6 +65,13 @@ Code is in `pwa/src/features/trading/`.
 
 Code is in `pwa/src/features/admin/`. The mock bot adds people commands, `fund manage|unmanage` and its own audit log (`pwa/mock-bot/audit.mjs`).
 
+**The strategy menu: clients choose, within limits.**
+- **A client's Strategies** shows what trades for them: each strategy's budget, its result so far and its trades. **Stop** asks in place and says that open positions stay open until the fund closes them. **Add a strategy** lists only the setups the fund allows them, each with its name, risk and description. A client chooses one and types a budget: the app shows the largest their limits allow on the account, and asks the bot to check the budget. Start is offered only once the bot says it would start.
+- **The owner's Strategy menu** (Admin) lists every setup. The owner adds one from the strategy form, with the name, description and risk clients read; changes a setup's words; or withdraws one. **Offer to clients**, on a saved backtest run, opens the form with that backtest's setup filled in.
+- **A client's page** gets **Limits**: which setups they may start, the largest budget (an amount, a % of the balance, or both), sessions at once, and Live.
+
+The screens read the bot's `menu list`, `clients limits` and `session strategies`, and start with `trading start|check --setup` (bot PRs #24 and #25). Code is in `pwa/src/features/menu/`. The mock bot (`pwa/mock-bot/menu.mjs`) offers two setups to Carol's client, with a largest budget of 40% of the balance and two sessions at once.
+
 **Connecting a bot with its API key** (the owner, under *Advanced* on the sign-in screen). On the bot's server, allow the app's origin and restart the bot:
 
 ```sh
