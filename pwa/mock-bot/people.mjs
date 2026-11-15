@@ -86,6 +86,64 @@ export function createPeople() {
     /** The accounts a person's connection holds: the mock's one account, for staff, the owner and carol (her client's). */
     accountsOf: () => ['demo'],
 
+    /** `people list|add|role|disable|enable|reset-code|reset-password` (Cli/Commands/PeopleCommands.cs), the owner's. */
+    manage(args) {
+      const asJson = args.includes('--json')
+      const view = (p) => ({ login: p.login, name: p.name, email: p.email, role: p.role, mustChangePassword: p.mustChange, codeSet: p.codeSet, disabled: Boolean(p.disabled),
+        createdAt: p.createdAt ?? '2026-11-01T09:00:00Z', sessions: [...tokens.values()].filter((t) => t.login === p.login).length })
+      const signOut = (login) => { for (const [token, session] of tokens) if (session.login === login) tokens.delete(token) }
+      const sub = args[1]
+      if (sub === 'list') return answer(people.map(view), people.map((p) => `${p.login} ${p.role}`).join('\n'), asJson)
+      const login = args[2]?.toLowerCase()
+      if (sub === 'add') {
+        const name = option(args, '--name'), email = option(args, '--email'), role = option(args, '--role'), password = option(args, '--password')
+        if (!login || !/^[A-Za-z0-9._-]+$/.test(login)) return failed("A login may only contain letters, digits, '.', '_' and '-'.")
+        if (!role) return failed('Give --role owner, staff or client.')
+        if (!['owner', 'staff', 'client'].includes(role)) return failed(`'${role}' is not a role: owner, staff or client.`)
+        if (!name) return failed('Give --name.')
+        if (name.length > 100) return failed('A name has 1 to 100 characters.')
+        if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return failed('That does not look like an e-mail address.')
+        if (!password) return failed('Give a temporary --password; their first sign-in replaces it.')
+        if (password.length < 8) return failed('A password has at least 8 characters.')
+        if (people.some((p) => p.login === login)) return failed(`The login '${args[2]}' is taken; choose another.`)
+        people.push({ login, name, email: email ?? null, role, password, mustChange: true, codeSet: false, disabled: false, createdAt: new Date().toISOString().replace(/\.\d+Z$/, 'Z') })
+        return answer(null, `Added ${login} (${name}), ${role}. Give them the temporary password; at their first sign-in they choose their own and add their code app.`, false)
+      }
+      const person = people.find((p) => p.login === login)
+      if (!person) return failed(`No person '${args[2] ?? ''}'. 'people list' shows who there is.`)
+      switch (sub) {
+        case 'role': {
+          const role = args[3]
+          if (!role) return failed('Give the role: people role <LOGIN> owner|staff|client.')
+          if (!['owner', 'staff', 'client'].includes(role)) return failed(`'${role}' is not a role: owner, staff or client.`)
+          person.role = role
+          return answer(null, `${login} is now ${role}.`, false)
+        }
+        case 'disable':
+          person.disabled = true
+          signOut(login)
+          return answer(null, `${login} cannot sign in, and is signed out everywhere.`, false)
+        case 'enable':
+          person.disabled = false
+          return answer(null, `${login} can sign in again.`, false)
+        case 'reset-code':
+          person.codeSet = false
+          signOut(login)
+          return answer(null, `${login} is signed out; their next sign-in adds their code app again.`, false)
+        case 'reset-password': {
+          const password = option(args, '--password')
+          if (!password) return failed('Give the temporary --password.')
+          if (password.length < 8) return failed('A password has at least 8 characters.')
+          person.password = password
+          person.mustChange = true
+          signOut(login)
+          return answer(null, `${login} is signed out; their next sign-in replaces the temporary password.`, false)
+        }
+        default:
+          return failed(`Unknown people command '${sub}'.`)
+      }
+    },
+
     /** A person's role, or null when there is no such person (for the clients' rules). */
     roleOf: (login) => people.find((p) => p.login === login?.toLowerCase())?.role ?? null,
 
@@ -98,6 +156,7 @@ export function createPeople() {
       const person = people.find((p) => p.login === login)
       if ((failures.get(login) ?? 0) >= 5) return failed(`Too many attempts for '${args[1]}'; try again in 60 s.`)
       if (!password) return failed('Give the password: signin <LOGIN> --password <PASSWORD>.')
+      if (person?.disabled) return failed('Invalid login or password.')
       if (!person || person.password !== password) {
         if (person) failures.set(login, (failures.get(login) ?? 0) + 1)
         return failed('Invalid login or password.')

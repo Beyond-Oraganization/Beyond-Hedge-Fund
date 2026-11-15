@@ -6,7 +6,7 @@
 // without X-BeyondBot-Connection reaches no account; the login that creates a connection answers with its token in
 // `connection`; an unknown token, or an X-BeyondBot-Account the connection does not hold, is 403. People (people.mjs):
 // signin needs no key; a person's token (bbp_…) is a bearer too, runs what their role may (403 otherwise), and acts on a
-// connection of their own holding the accounts they reach. Portfolios (portfolio.mjs): `portfolio` and `activity`. Clients (clients.mjs): `clients …` and `fund accounts`.
+// connection of their own holding the accounts they reach. Portfolios (portfolio.mjs): `portfolio` and `activity`. Clients (clients.mjs): `clients …` and `fund accounts|manage|unmanage`. The audit log (audit.mjs): each change, refused ones too.
 //
 //   node mock-bot/server.mjs [--port 8443] [--speed 60] [--signed-out] [--ordering-bug] [--add-delay 3500]
 //   MOCK_BOT_KEY (default below), MOCK_BOT_ORIGINS ("*" = any localhost origin, or a comma list)
@@ -19,6 +19,7 @@ import { createPeople } from './people.mjs'
 import { createPortfolio } from './portfolio.mjs'
 import { createClients } from './clients.mjs'
 import { overview } from './overview.mjs'
+import { createAudit } from './audit.mjs'
 
 export const DEFAULT_KEY = 'mock-bot-key-0123456789abcdef0123456789abcdef'
 const MAX_BODY = 4096
@@ -59,6 +60,7 @@ export function startServer({ port = 8443, key = DEFAULT_KEY, origins = '*', con
   let connections = new Map()
   let people = createPeople()
   let clients = createClients((login) => people.roleOf(login))
+  let audit = createAudit()
   // Person's login → their connection: what they may reach, kept between their commands.
   let personal = new Map()
   const allowed = (origin) => {
@@ -82,6 +84,7 @@ export function startServer({ port = 8443, key = DEFAULT_KEY, origins = '*', con
         connections = new Map()
         people = createPeople()
         clients = createClients((login) => people.roleOf(login))
+        audit = createAudit()
         personal = new Map()
         const given = Object.fromEntries(url.searchParams)
         const flag = (name) => (name in given ? given[name] === '1' || given[name] === 'true' : botOptions[name])
@@ -168,7 +171,10 @@ export function startServer({ port = 8443, key = DEFAULT_KEY, origins = '*', con
       }
 
       // A person's own sign-in commands, and the policy for everything else they send.
-      const reply = (result) => res.end(JSON.stringify({ command: describe(args), elapsedMs: 1, blocks: [], account: null, connection: null, ...result, json: result.json ?? null, ok: result.exitCode === 0 }))
+      const reply = (result) => {
+        audit.record(args, caller, result)
+        return res.end(JSON.stringify({ command: describe(args), elapsedMs: 1, blocks: [], account: null, connection: null, ...result, json: result.json ?? null, ok: result.exitCode === 0 }))
+      }
       if (args[0] === 'signin') return reply(people.signin(args))
       if (args[0] === 'me') return reply(people.me(caller, args))
       if (args[0] === 'signout') return reply(people.signout(caller, args))
@@ -176,13 +182,16 @@ export function startServer({ port = 8443, key = DEFAULT_KEY, origins = '*', con
         const no = people.refusal(caller.person, args)
         if (no) {
           res.statusCode = 403
+          audit.record(args, caller, { exitCode: 2, error: { message: no }, refused: true })
           return res.end(JSON.stringify(refused(describe(args), { message: no, hint: null })))
         }
         if (!personal.has(caller.person.login)) personal.set(caller.person.login, { accounts: people.accountsOf(caller.person), current: people.accountsOf(caller.person)[0] ?? null })
       }
 
-      // The fund's clients and managed accounts.
-      if (args[0] === 'clients' || (args[0] === 'fund' && args[1] === 'accounts')) return reply(clients.run(args))
+      // The fund's people (owner), audit log, clients and managed accounts.
+      if (args[0] === 'people') return reply(people.manage(args))
+      if (args[0] === 'audit') return res.end(JSON.stringify({ command: describe(args), elapsedMs: 1, account: null, connection: null, ...audit.run(args), ok: true }))
+      if (args[0] === 'clients' || (args[0] === 'fund' && ['accounts', 'manage', 'unmanage'].includes(args[1]))) return reply(clients.run(args))
       if (args[0] === 'fund' && args[1] === 'overview')
         return reply(overview(args, { portfolio: createPortfolio(() => bot.now()), clients, sessions: () => [...bot.state.sessions.values()], now: () => bot.now() }))
       // The fund's portfolios, on the bot's clock (so /__mock/advance moves them too).
@@ -225,6 +234,7 @@ export function startServer({ port = 8443, key = DEFAULT_KEY, origins = '*', con
         connections.set(issued, connection)
       }
       const answer = { command: describe(args), exitCode: result.exitCode, elapsedMs, output: result.output, blocks: result.blocks, error: result.error, json: result.json ?? null, ok: result.exitCode === 0, account: result.account ?? null, connection: issued }
+      audit.record(args, caller, result)
       if (log) console.log(`API: ${answer.command} → exit code ${answer.exitCode} in ${elapsedMs} ms`)
       if (!res.writableEnded) res.end(JSON.stringify(answer))
     })
