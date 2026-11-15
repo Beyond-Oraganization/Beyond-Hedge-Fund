@@ -1,0 +1,105 @@
+/* ---------- the redesign's kit (src/shared/ui) ----------
+   docs/fund-app-redesign-plan.md, section 8 (Beyond-Bot-Bybit): the website's palette and type, calmer for daily
+   data. Data sits on --paper; headings, buttons and messages are in sentence case (uppercase stays for small
+   labels); containers have 2 px rules; 3 px and the hard shadow mark only the main action. Colours come from
+   tokens.css (--paper, --grey-1…8, --gain/--loss/--warn-1…5), checked by tokens.node.test.ts. Every class starts
+   with k-, so nothing here touches today's screens. Meant for light surfaces (the page, paper), not the navy band. */
+:root{
+  --k-fs-xs:12px;--k-fs-s:14px;--k-fs-m:16px;--k-fs-l:20px;--k-fs-xl:24px;--k-fs-title:clamp(26px,3.4cqw,32px);--k-fs-key:clamp(34px,6cqw,56px);
+  --k-sp-1:4px;--k-sp-2:8px;--k-sp-3:12px;--k-sp-4:16px;--k-sp-5:24px;--k-sp-6:32px;--k-sp-7:48px;
+  --k-rule:2px;--k-rule-strong:3px;--k-ctl:44px;--k-ctl-large:56px;--k-shadow:4px 4px 0 var(--c-fg)
+}
+
+.k-label{margin:0;font:700 var(--k-fs-xs)/1.4 var(--f-t);letter-spacing:.12em;text-transform:uppercase;color:var(--grey-7)}
+.k-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--k-sp-2) var(--k-sp-3)}
+
+/* page header */
+.k-page-head{display:grid;gap:var(--k-sp-2);margin-bottom:var(--k-sp-5)}
+.k-crumbs{font:500 var(--k-fs-s)/1.4 var(--f-r);color:var(--grey-7)}
+.k-crumbs a{text-decoration:underline;text-underline-offset:3px}
+.k-crumbs span:last-child>[aria-hidden]{display:none}
+.k-page-head-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--k-sp-3) var(--k-sp-5)}
+.k-title{margin:0;min-width:0;font:400 var(--k-fs-title)/1.1 var(--f-d);letter-spacing:-.01em;text-wrap:balance;color:var(--c-fg)}
+.k-meta{margin:0;font:400 var(--k-fs-s)/1.5 var(--f-r);color:var(--grey-7)}
+
+/* card */
+.k-card{display:grid;gap:var(--k-sp-3);min-width:0;padding:var(--k-sp-4) var(--k-sp-5);border:var(--k-rule) solid var(--c-fg);background:var(--paper);color:var(--c-fg)}
+.k-card-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--k-sp-2) var(--k-sp-3)}
+.k-card-title{margin:0;font:700 var(--k-fs-l)/1.25 var(--f-r)}
+
+/* figures */
+.k-key{display:grid;gap:var(--k-sp-2);min-width:0}
+.k-key-value{margin:0;font:600 var(--k-fs-key)/1.05 var(--f-t);font-variant-numeric:tabular-nums;letter-spacing:-.02em;overflow-wrap:anywhere}
+.k-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:var(--k-sp-3) var(--k-sp-5);margin-top:var(--k-sp-2)}
+.k-stat{display:grid;gap:2px;min-width:0}
+.k-stat-label{font:500 var(--k-fs-s)/1.4 var(--f-r);color:var(--grey-7)}
+.k-stat-value{font:600 var(--k-fs-l)/1.25 var(--f-t);font-variant-numeric:tabular-nums}
+.k-stat-sub{font:400 var(--k-fs-s)/1.4 var(--f-r);color:var(--grey-7)}
+.k-change{font-family:var(--f-t);font-variant-numeric:tabular-nums;white-space:nowrap}
+.k-gain{color:var(--gain-5)}
+.k-loss{color:var(--loss-5)}
+
+/* badge and banner: a tint, a symbol and the tone's darkest text */
+.k-badge{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border:1px solid var(--grey-4);background:var(--grey-1);color:var(--c-fg);font:600 var(--k-fs-s)/1.4 var(--f-r);white-space:nowrap}
+.k-badge-symbol{font-weight:700}
+.k-badge.k-ok{border-color:var(--gain-3);background:var(--gain-1);color:var(--gain-5)}
+.k-badge.k-warn{border-color:var(--warn-3);background:var(--warn-1);color:var(--warn-5)}
+.k-badge.k-error{border-color:var(--loss-3);background:var(--loss-1);color:var(--loss-5)}
+.k-banner{display:flex;flex-wrap:wrap;align-items:flex-start;gap:var(--k-sp-2) var(--k-sp-3);padding:var(--k-sp-3) var(--k-sp-4);border:var(--k-rule) solid var(--grey-5);border-left-width:8px;background:var(--grey-1);color:var(--c-fg)}
+.k-banner-symbol{flex:0 0 auto;width:1.2em;font:700 var(--k-fs-l)/1.2 var(--f-t);text-align:center}
+.k-banner-text{flex:1 1 16em;min-width:0;display:grid;gap:2px}
+.k-banner-title{margin:0;font:700 var(--k-fs-m)/1.4 var(--f-r)}
+.k-banner-body{font:400 var(--k-fs-s)/1.5 var(--f-r)}
+.k-banner.k-ok{border-color:var(--gain-4);background:var(--gain-1)}
+.k-banner.k-ok .k-banner-symbol{color:var(--gain-5)}
+.k-banner.k-warn{border-color:var(--warn-4);background:var(--warn-1)}
+.k-banner.k-warn .k-banner-symbol{color:var(--warn-5)}
+.k-banner.k-error{border-color:var(--loss-4);background:var(--loss-1)}
+.k-banner.k-error .k-banner-symbol{color:var(--loss-5)}
+
+/* empty state */
+.k-empty{display:grid;justify-items:start;gap:var(--k-sp-2);padding:var(--k-sp-5);border:var(--k-rule) dashed var(--grey-5);background:var(--paper);color:var(--c-fg)}
+.k-empty-title{margin:0;font:700 var(--k-fs-l)/1.3 var(--f-r)}
+.k-empty-body{max-width:40em;font:400 var(--k-fs-m)/1.5 var(--f-r);color:var(--grey-7)}
+
+/* buttons: sentence case, 44 px; the hard shadow says "the main action" */
+.k-btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--k-sp-2);min-height:var(--k-ctl);padding:0 var(--k-sp-5);border:var(--k-rule) solid var(--c-fg);border-radius:0;background:transparent;color:var(--c-fg);font:600 var(--k-fs-m)/1.2 var(--f-r);text-align:center;text-decoration:none;cursor:pointer;transition:transform .2s var(--ease),box-shadow .2s var(--ease),background-color .2s var(--ease)}
+.k-btn svg{flex:0 0 auto;width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.k-btn:hover{opacity:1;background:var(--grey-1)}
+.k-btn-primary{border-width:var(--k-rule-strong);background:var(--c-fg);color:var(--paper);box-shadow:var(--k-shadow)}
+.k-btn-primary:hover{background:var(--grey-8);transform:translate(-2px,-2px);box-shadow:6px 6px 0 var(--c-fg)}
+.k-btn-danger{border-color:var(--accent);background:var(--accent);color:var(--accent-ink)}
+.k-btn-danger:hover{background:color-mix(in srgb,var(--accent) 86%,#000)}
+.k-btn-quiet{border-color:transparent;padding:0 var(--k-sp-2);text-decoration:underline;text-underline-offset:4px}
+.k-btn-quiet:hover{background:transparent;text-decoration-thickness:2px}
+.k-btn-large{min-height:var(--k-ctl-large);padding:0 var(--k-sp-6)}
+.k-btn:active{transform:translate(1px,1px);box-shadow:none}
+.k-btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
+.k-btn[aria-busy="true"]{cursor:progress;background-image:repeating-linear-gradient(-45deg,transparent 0 10px,color-mix(in srgb,currentColor 18%,transparent) 10px 20px);background-size:28px 28px}
+
+/* fields and the code */
+.k-field{display:grid;gap:var(--k-sp-1)}
+.k-field>label{font:600 var(--k-fs-s)/1.4 var(--f-r)}
+.k-hint{font:400 var(--k-fs-s)/1.5 var(--f-r);color:var(--grey-7)}
+.k-field-error{font:600 var(--k-fs-s)/1.5 var(--f-r);color:var(--loss-5)}
+.k-field-error::before{content:"! "}
+.k-code{display:grid;justify-items:start;gap:var(--k-sp-4)}
+.k-code-input{width:calc(6 * (1ch + .25em) + 2 * var(--k-sp-3) + 2 * var(--k-rule) + 8px);box-sizing:border-box;min-height:var(--k-ctl-large);padding:0 var(--k-sp-3);border:var(--k-rule) solid var(--c-fg);border-radius:0;background:var(--paper);color:var(--c-fg);font:600 var(--k-fs-xl)/1 var(--f-t);letter-spacing:.25em;font-variant-numeric:tabular-nums}
+.k-code-input[aria-invalid="true"]{border-color:var(--loss-5)}
+
+/* the data table on paper (DataTable surface="paper") */
+.tbl-wrap.k-table{border:var(--k-rule) solid var(--c-fg);background:var(--paper);color:var(--c-fg)}
+.k-table .tbl{font:500 var(--k-fs-s)/1.4 var(--f-r);font-variant-numeric:tabular-nums}
+.k-table .tbl th{background:var(--grey-1);color:var(--grey-8);border-bottom:var(--k-rule) solid var(--c-fg)}
+.k-table .tbl td{border-top:1px solid var(--grey-3)}
+.k-table .tbl .r{font-family:var(--f-t)}
+.k-table .tbl tbody tr:hover{background:var(--grey-1)}
+.k-table .tbl .gain{color:var(--gain-5)}
+.k-table .tbl .loss{color:var(--loss-5)}
+
+/* the design page (#/design, development builds only) */
+.k-swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,120px),1fr));gap:var(--k-sp-2)}
+.k-swatch{display:grid;gap:2px;font:500 var(--k-fs-xs)/1.3 var(--f-t)}
+.k-swatch>span:first-child{height:40px;border:1px solid var(--grey-4)}
+.k-demo{display:grid;gap:var(--k-sp-5)}
+.k-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--k-sp-3)}

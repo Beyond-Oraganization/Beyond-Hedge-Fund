@@ -343,7 +343,8 @@ function Runtime() {
   return null
 }
 
-const OPEN_WITHOUT_BOT = ['/connect', '/connections', '/install', '/settings']
+// /design is the kit's page, in development builds only (App.tsx).
+const OPEN_WITHOUT_BOT = ['/connect', '/connections', '/install', '/settings', '/design']
 
 export function Shell() {
   const { connection, ready } = useBot()

@@ -10,6 +10,13 @@
   --accent:#D62828;--accent-ink:#FFFFFF;--band:#F77F00;--band-ink:#003049;--progress:#D62828;--outer:#003049;
   --c-gain:#0A5C2B;--c-loss:#9B1B1B;--d-gain:#7FD8A0;--d-loss:#FF9C8F;
   --status-bar:#003049;
+  /* the redesign's kit (src/shared/ui): a paper surface for data, 8 greys mixed from --c-fg into it, and 5 shades
+     each of gain, loss and warning. 1–2 are tints, 3 borders, 4–5 text; tokens.node.test.ts checks the contrast. */
+  --paper:#FFF6E3;
+  --grey-1:#F5EEDD;--grey-2:#E8E4D5;--grey-3:#D6D6CA;--grey-4:#B8BFB8;--grey-5:#8C9D9E;--grey-6:#57737D;--grey-7:#2E5465;--grey-8:#144055;
+  --gain-1:#EBEAD4;--gain-2:#D8DDC6;--gain-3:#91B190;--gain-4:#2F7347;--gain-5:#0A5C2B;
+  --loss-1:#F7E4D3;--loss-2:#EFD3C3;--loss-3:#D29389;--loss-4:#AA3C39;--loss-5:#9B1B1B;
+  --warn-1:#F4E8D1;--warn-2:#EAD9BF;--warn-3:#C3A57D;--warn-4:#8E5E22;--warn-5:#7A4300;
   --safe-top:env(safe-area-inset-top,0px);--safe-right:env(safe-area-inset-right,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);
   --header-h:64px;--bottom-h:64px
 }
@@ -17,5 +24,10 @@
   --c-bg:#FCF5ED;--c-alt:#F9E3D2;--c-fg:#1F1717;--c-mute:#5A4646;--c-line:rgba(31,23,23,.35);
   --d-bg:#F4BF96;--d-fg:#1F1717;--d-mute:#4A3838;--d-line:rgba(31,23,23,.35);--d-lead:#3B2B2B;
   --accent:#A8394A;--accent-ink:#FFFFFF;--band:#CE5A67;--band-ink:#1F1717;--progress:#CE5A67;--outer:#F4BF96;
-  --c-gain:#0A5C2B;--c-loss:#9B1B1B;--d-gain:#0A5C2B;--d-loss:#9B1B1B
+  --c-gain:#0A5C2B;--c-loss:#9B1B1B;--d-gain:#0A5C2B;--d-loss:#9B1B1B;
+  --paper:#FFFFFF;
+  --grey-1:#F6F6F6;--grey-2:#EBEAEA;--grey-3:#DBDADA;--grey-4:#C0BEBE;--grey-5:#9A9797;--grey-6:#6B6666;--grey-7:#474141;--grey-8:#312A2A;
+  --gain-1:#EBF2EE;--gain-2:#D8E5DD;--gain-3:#91B6A0;--gain-4:#2F744B;--gain-5:#0A5C2B;
+  --loss-1:#F7EDED;--loss-2:#EFDBDB;--loss-3:#D29898;--loss-4:#AA3D3D;--loss-5:#9B1B1B;
+  --warn-1:#F4F0EB;--warn-2:#EAE1D6;--warn-3:#C3AA8C;--warn-4:#8E5F26;--warn-5:#7A4300
 }
