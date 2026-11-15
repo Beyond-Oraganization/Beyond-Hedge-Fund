@@ -46,7 +46,7 @@ export const useHealth = create<{ byId: Record<string, BotHealth>; report: (id: 
     else if (kind !== 'unreachable' && kind !== 'cancelled') next.unauthorized = false
     if (kind === 'signedOut') next.signedOut = true
     if (kind === 'ok' && /^(session|balance|positions|login|credentials|signal|trading|orders place|orders close|market add|market sync)\b/.test(command)) next.signedOut = false
-    if (kind === 'ok' || kind === 'failed' || kind === 'usage' || kind === 'signedOut' || kind === 'expired') next.lastOkAt = Date.now()
+    if (kind === 'ok' || kind === 'failed' || kind === 'usage' || kind === 'signedOut' || kind === 'expired' || kind === 'forbidden') next.lastOkAt = Date.now()
     if (JSON.stringify(next) !== JSON.stringify(now)) set({ byId: { ...get().byId, [id]: next } })
   },
 }))
@@ -61,7 +61,11 @@ export function queueFor(id: string): CommandQueue {
       const state = useConnections.getState()
       const connection = state.connections.find((c) => c.id === id)
       const key = state.keys[id]
-      return connection && key ? { url: connection.url, key, connection: state.tokens[id] ?? null } : null
+      return connection && key
+        ? connection.person
+          ? { url: connection.url, key, person: true }
+          : { url: connection.url, key, connection: state.tokens[id] ?? null }
+        : null
     })
     queue.onFinished((finished) => {
       if (finished.connection) void useConnections.getState().setToken(id, finished.connection)

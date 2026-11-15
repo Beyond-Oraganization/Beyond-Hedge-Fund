@@ -42,3 +42,15 @@ describe('which section a screen belongs to', () => {
     expect(sectionOf(sections, '/connect')).toBeUndefined()
   })
 })
+
+describe('the navigation of people who sign in', () => {
+  it('gives a client their account only, for now', () => {
+    expect(sectionsFor('client', { person: true }).flatMap((section) => section.items.map((item) => item.to))).toEqual(['/me'])
+  })
+
+  it('adds a person’s own sign-in to Admin, and not for the API key', () => {
+    const admin = (person: boolean) => sectionsFor('staff', { person }).find((section) => section.id === 'admin')!.items.map((item) => item.to)
+    expect(admin(true)[0]).toBe('/me')
+    expect(admin(false)).not.toContain('/me')
+  })
+})

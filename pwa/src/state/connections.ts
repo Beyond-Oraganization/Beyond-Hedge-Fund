@@ -10,6 +10,10 @@ import { seal, unseal, type Sealed } from './vault.ts'
  */
 export type KeyStorage = 'passphrase' | 'device' | 'session'
 
+/** Who a person's sign-in is (the fund's people sign in with their own login; others connect with the API key). */
+export type PersonRole = 'owner' | 'staff' | 'client'
+export type SignedInPerson = { login: string; name: string; role: PersonRole; device?: string | null }
+
 export type Connection = {
   id: string
   name: string
@@ -21,6 +25,8 @@ export type Connection = {
   botVersion?: string | null
   /** Locked with "Lock the bot" while remembered: unlocking with the passphrase remembers it again. */
   relock?: boolean
+  /** A person's sign-in: the key is then their token (bbp_…), not the API key. */
+  person?: SignedInPerson
 }
 
 type Saved = { connections: Connection[]; activeId: string | null; tokens?: Record<string, string> }
@@ -38,6 +44,11 @@ type ConnectionState = Saved & {
   setToken: (id: string, token: string | null) => Promise<void>
   load: () => Promise<void>
   add: (input: { name: string; url: string; key: string; storage: KeyStorage; passphrase?: string }) => Promise<Connection>
+  /**
+   * A person's sign-in to the fund's server: their token kept like a key, with the device key (remember me) or for this
+   * visit only. A sign-in of the same person to the same server replaces the one before.
+   */
+  addPerson: (input: { url: string; token: string; person: SignedInPerson; remember: boolean }) => Promise<Connection>
   update: (id: string, patch: Partial<Omit<Connection, 'id'>>) => Promise<void>
   replaceKey: (id: string, key: string, storage: KeyStorage, passphrase?: string) => Promise<void>
   remove: (id: string) => Promise<void>
@@ -95,6 +106,19 @@ export const useConnections = create<ConnectionState>((set, get) => {
       const sealed = storage === 'session' ? null : await seal(id, key.trim(), storage === 'passphrase' ? (passphrase ?? '') : null)
       const connection: Connection = { id, name: name.trim() || new URL(normalizeUrl(url)).host, url: normalizeUrl(url), storage, sealed, addedAt: Date.now() }
       set({ connections: [...get().connections, connection], activeId: id, keys: { ...get().keys, [id]: key.trim() } })
+      await save()
+      return connection
+    },
+
+    async addPerson({ url, token, person, remember }) {
+      const address = normalizeUrl(url)
+      const before = get().connections.find((c) => c.person?.login === person.login && c.url === address)
+      if (before) await get().remove(before.id)
+      const id = newId()
+      const storage: KeyStorage = remember ? 'device' : 'session'
+      const sealed = remember ? await seal(id, token, null) : null
+      const connection: Connection = { id, name: person.name, url: address, storage, sealed, addedAt: Date.now(), person }
+      set({ connections: [...get().connections, connection], activeId: id, keys: { ...get().keys, [id]: token } })
       await save()
       return connection
     },

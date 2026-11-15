@@ -108,3 +108,14 @@
 .sec.sec-head{--sy:clamp(20px,3cqw,32px)}
 .k-head-text{display:grid;gap:6px;min-width:0;max-width:52em}
 .k-lead{margin:0;max-width:44em;font:400 var(--k-fs-m)/1.5 var(--f-r);color:var(--grey-8)}
+
+/* text inputs, check boxes and forms of the kit (the sign-in screen first) */
+.k-form{display:grid;gap:var(--k-sp-4)}
+.k-input{width:100%;min-height:var(--k-ctl);padding:0 var(--k-sp-3);border:var(--k-rule) solid var(--c-fg);border-radius:0;background:var(--paper);color:var(--c-fg);font:400 var(--k-fs-m)/1.3 var(--f-r)}
+.k-input:focus-visible{outline:3px solid var(--c-fg);outline-offset:2px}
+.k-check{display:flex;align-items:center;gap:var(--k-sp-2);min-height:var(--k-ctl);font:500 var(--k-fs-m)/1.3 var(--f-r)}
+.k-check input{width:20px;height:20px;accent-color:var(--c-fg)}
+.k-secret{margin:0;padding:var(--k-sp-3);border:1px dashed var(--grey-5);background:var(--grey-1);font:600 var(--k-fs-m)/1.4 var(--f-t);letter-spacing:.08em;overflow-wrap:anywhere;user-select:all}
+.k-facts{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--k-sp-2) var(--k-sp-5);margin:0}
+.k-facts dt{font:500 var(--k-fs-s)/1.5 var(--f-r);color:var(--grey-7)}
+.k-facts dd{margin:0;font:400 var(--k-fs-m)/1.5 var(--f-r);overflow-wrap:anywhere}
