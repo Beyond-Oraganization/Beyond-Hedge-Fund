@@ -1,0 +1,702 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Beyond Hedge Fund mockups</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Low-fidelity wireframes for step 1 of docs/fund-app-redesign-plan.md (bot repo).
+   Grey on purpose: structure, words and flow first; the brand's colours come in step 2.
+   Layout: a toolbar to pick a role, then the phone (client) or the computer (staff), with design notes beside it. */
+:root{
+  --bg:#EEF0F2;--paper:#FFFFFF;--fill:#E2E6E9;--ink:#1A2227;--mute:#5A666F;--line:#C6CDD2;--strong:#26323A;--on-strong:#FFFFFF;--hatch:rgba(26,34,39,.10);
+  --f-r:'IBM Plex Sans','Helvetica Neue',Arial,sans-serif;--f-m:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;--s7:48px;
+  --t-xs:12px;--t-s:14px;--t-m:16px;--t-l:20px;--t-xl:28px;--t-xxl:36px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#13181B;--paper:#1C2226;--fill:#283036;--ink:#E5E9EC;--mute:#9AA6AE;--line:#3A454C;--strong:#E5E9EC;--on-strong:#13181B;--hatch:rgba(229,233,236,.10);color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#13181B;--paper:#1C2226;--fill:#283036;--ink:#E5E9EC;--mute:#9AA6AE;--line:#3A454C;--strong:#E5E9EC;--on-strong:#13181B;--hatch:rgba(229,233,236,.10);color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:400 var(--t-m)/1.5 var(--f-r)}
+button,input,select{font:inherit;color:inherit}
+h1,h2,h3,p,ul,ol,dl,dd{margin:0;padding:0}
+ul,ol{list-style:none}
+:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.num{font-family:var(--f-m);font-variant-numeric:tabular-nums}
+.mute{color:var(--mute)}
+.small{font-size:var(--t-s)}
+.label{font:600 var(--t-xs)/1.4 var(--f-m);letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* toolbar */
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--paper)}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--paper);border-bottom:1px solid var(--line);
+  padding-block:var(--s3);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;flex-wrap:wrap;align-items:center;gap:var(--s3) var(--s5)}
+.bar h1{font-size:var(--t-m);font-weight:700}
+.bar h1 span{font-weight:400;color:var(--mute)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:transparent;padding:6px 14px;cursor:pointer;font-size:var(--t-s)}
+.seg button[aria-pressed="true"]{background:var(--strong);color:var(--on-strong)}
+.bar .grow{flex:1}
+.toggle{display:inline-flex;align-items:center;gap:var(--s2);font-size:var(--t-s);cursor:pointer}
+
+.stage{padding-block:var(--s5) var(--s7);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;flex-wrap:wrap;justify-content:center;align-items:flex-start;gap:var(--s6)}
+.notes{flex:0 1 320px;min-width:0;display:grid;gap:var(--s4)}
+.notes h2{font-size:var(--t-m);font-weight:700}
+.notes ul{display:grid;gap:var(--s2);font-size:var(--t-s)}
+.notes li{padding-left:var(--s4);position:relative}
+.notes li::before{content:"–";position:absolute;left:0;color:var(--mute)}
+.notes .q{border:1px dashed var(--line);border-radius:8px;padding:var(--s3) var(--s4);background:var(--paper)}
+.notes .screens{display:flex;flex-wrap:wrap;gap:var(--s2)}
+.notes .screens a{font-size:var(--t-s);color:inherit}
+body.no-notes .notes{display:none}
+
+/* phone and computer frames */
+.phone{width:390px;height:800px;max-width:100%;border:1px solid var(--line);border-radius:32px;overflow:hidden;display:flex;flex-direction:column;background:var(--bg);box-shadow:0 1px 2px var(--hatch),0 12px 32px var(--hatch)}
+.phone .appbar{display:flex;align-items:center;gap:var(--s3);padding:var(--s4) var(--s4) var(--s3);background:var(--paper);border-bottom:1px solid var(--line)}
+.phone .appbar .brand{font-weight:700;font-size:var(--t-s)}
+.phone .scroll{flex:1;overflow:auto;padding:var(--s4);display:grid;gap:var(--s4);align-content:start}
+.tabbar{display:grid;grid-template-columns:repeat(4,1fr);background:var(--paper);border-top:1px solid var(--line)}
+.tabbar a{display:grid;justify-items:center;gap:2px;padding:var(--s2) 0 var(--s3);font-size:var(--t-xs);font-weight:600;color:var(--mute);text-decoration:none}
+.tabbar a .ico{width:22px;height:22px;border:2px solid currentColor;border-radius:6px}
+.tabbar a[aria-current="page"]{color:var(--ink)}
+.tabbar a[aria-current="page"] .ico{background:currentColor}
+
+.desk{width:min(100%,1180px);height:780px;border:1px solid var(--line);border-radius:12px;overflow:hidden;display:grid;grid-template-columns:208px minmax(0,1fr);background:var(--bg);box-shadow:0 1px 2px var(--hatch),0 12px 32px var(--hatch)}
+.side{background:var(--paper);border-right:1px solid var(--line);padding:var(--s4) var(--s3);display:flex;flex-direction:column;gap:var(--s1)}
+.side .brand{font-weight:700;padding:var(--s2) var(--s3) var(--s4)}
+.side a{display:flex;align-items:center;gap:var(--s3);padding:var(--s2) var(--s3);border-radius:8px;color:inherit;text-decoration:none;font-weight:500}
+.side a .ico{width:16px;height:16px;border:2px solid currentColor;border-radius:4px;flex:0 0 auto}
+.side a[aria-current="page"]{background:var(--fill);font-weight:700}
+.side .who{margin-top:auto;padding:var(--s3);border-top:1px solid var(--line);font-size:var(--t-s)}
+.desk main{overflow:auto;padding:var(--s5) var(--s6);display:grid;gap:var(--s5);align-content:start;min-width:0}
+.desk.full{width:100%}
+
+@media (max-width:640px){
+  .stage{padding-left:0;padding-right:0;padding-top:0;gap:var(--s5)}
+  .notes{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .phone{width:100%;height:auto;border-radius:0;border-left:0;border-right:0;box-shadow:none}
+  .phone .scroll{overflow:visible}
+  .tabbar{position:sticky;bottom:0}
+}
+@media (max-width:900px){
+  .desk{grid-template-columns:minmax(0,1fr);height:auto;border-radius:0;border-left:0;border-right:0}
+  .side{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);padding:var(--s2)}
+  .side .brand,.side .who{display:none}
+  .side a{white-space:nowrap}
+  .desk main{padding:var(--s4)}
+}
+
+/* page parts */
+.head{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s3) var(--s4)}
+.head h2{font-size:var(--t-xl);font-weight:700;line-height:1.15;text-wrap:balance;flex:1 1 auto;min-width:0}
+.phone .head h2{font-size:var(--t-l)}
+.crumbs{font-size:var(--t-s);color:var(--mute)}
+.crumbs a{color:inherit}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:var(--s4);display:grid;gap:var(--s3);min-width:0}
+.card h3{font-size:var(--t-m);font-weight:700}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2) var(--s3)}
+.row .grow{flex:1 1 auto;min-width:0}
+.kf .big{font:600 var(--t-xxl)/1.1 var(--f-m);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.phone .kf .big{font-size:32px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:var(--s3)}
+.stat{display:grid;gap:2px}
+.stat .v{font:600 var(--t-l)/1.2 var(--f-m);font-variant-numeric:tabular-nums}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--s4)}
+.list{display:grid}
+.list>li{display:flex;gap:var(--s3);align-items:flex-start;padding:var(--s3) 0;border-top:1px solid var(--line)}
+.list>li:first-child{border-top:0;padding-top:0}
+.list .grow{flex:1;min-width:0}
+.day{margin-top:var(--s2)}
+
+.pill{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border:1px solid var(--line);border-radius:999px;font-size:var(--t-xs);font-weight:600;white-space:nowrap;background:var(--paper)}
+.pill.ok::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ink)}
+.pill.warn{border:1px dashed var(--ink);background:repeating-linear-gradient(-45deg,var(--paper) 0 6px,var(--hatch) 6px 12px)}
+.pill.warn::before{content:"!";font-weight:700}
+.pill.solid{background:var(--strong);color:var(--on-strong);border-color:var(--strong)}
+.attn{border-left:4px solid var(--ink);background:repeating-linear-gradient(-45deg,var(--paper) 0 8px,var(--hatch) 8px 16px)}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--s2);min-height:44px;padding:0 var(--s4);border:1px solid var(--ink);border-radius:8px;background:var(--paper);font-weight:600;cursor:pointer;text-decoration:none;color:var(--ink)}
+.btn.primary{background:var(--strong);color:var(--on-strong);border-color:var(--strong)}
+.btn.quiet{border-color:transparent;background:transparent;text-decoration:underline;text-underline-offset:3px;padding:0 var(--s2)}
+.btn.small{min-height:36px;padding:0 var(--s3);font-size:var(--t-s)}
+.btn.block{width:100%}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+.field{display:grid;gap:var(--s1)}
+.field label,.field .lbl{font-weight:600;font-size:var(--t-s)}
+.field input[type=text],.field input[type=password],.field input[type=number],.field input[inputmode]{min-height:44px;padding:0 var(--s3);border:1px solid var(--mute);border-radius:8px;background:var(--paper);width:100%}
+.field .hint{font-size:var(--t-s);color:var(--mute)}
+.field .err{font-size:var(--t-s);font-weight:600}
+.field .err::before{content:"! "}
+.check{display:flex;gap:var(--s2);align-items:flex-start;font-size:var(--t-s)}
+.check input{margin-top:3px}
+.code{letter-spacing:.4em;font-family:var(--f-m);text-align:center}
+
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+table{border-collapse:collapse;width:100%;font-size:var(--t-s)}
+th,td{padding:10px var(--s3);text-align:left;border-top:1px solid var(--line);white-space:nowrap}
+thead th{border-top:0;font:600 var(--t-xs)/1.4 var(--f-m);letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+td.r,th.r{text-align:right}
+tbody tr.link{cursor:pointer}
+tbody tr.link:hover{background:var(--fill)}
+
+.tabs{display:flex;gap:var(--s1);border-bottom:1px solid var(--line);overflow-x:auto}
+.tabs button{border:0;background:none;padding:var(--s2) var(--s3);cursor:pointer;font-weight:500;border-bottom:3px solid transparent;white-space:nowrap}
+.tabs button[aria-selected="true"]{border-bottom-color:var(--ink);font-weight:700}
+
+.steps{display:flex;gap:var(--s2);font-size:var(--t-xs);font-weight:600;color:var(--mute)}
+.steps span{flex:1;border-top:3px solid var(--line);padding-top:var(--s1)}
+.steps span.on{border-top-color:var(--ink);color:var(--ink)}
+.choice{display:grid;gap:var(--s2);text-align:left;width:100%;cursor:pointer;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:var(--s4)}
+.choice[aria-pressed="true"]{border:2px solid var(--ink);padding:calc(var(--s4) - 1px)}
+.facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s2)}
+.facts>span{background:var(--fill);border-radius:8px;padding:var(--s2)}
+.facts .v{font:600 var(--t-m)/1.2 var(--f-m)}
+.viewing{background:var(--strong);color:var(--on-strong);padding:var(--s2) var(--s4);font-size:var(--t-s);display:flex;gap:var(--s3);align-items:center;justify-content:space-between}
+.viewing button{background:none;border:1px solid currentColor;border-radius:6px;color:inherit;padding:2px 10px;cursor:pointer}
+.placeholder{border:2px dashed var(--line);border-radius:12px;padding:var(--s6);text-align:center;color:var(--mute);display:grid;gap:var(--s2);justify-items:center}
+
+.chart{margin:0}
+.chart svg{display:block;width:100%;height:auto}
+.chart .ax{fill:var(--mute);font:500 11px var(--f-m)}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart .line{fill:none;stroke:var(--ink);stroke-width:2}
+.chart .area{fill:var(--hatch)}
+.chart .mark{stroke:var(--ink);stroke-width:1;stroke-dasharray:3 3}
+.chart .dot{fill:var(--ink)}
+.chart .tag{fill:var(--ink);font:600 11px var(--f-r)}
+
+.toasts{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));display:grid;gap:var(--s2);z-index:20;max-width:calc(100% - 32px)}
+.toast{background:var(--strong);color:var(--on-strong);border-radius:10px;padding:var(--s3) var(--s4);font-size:var(--t-s);box-shadow:0 8px 24px var(--hatch)}
+@media (prefers-reduced-motion:no-preference){.toast{animation:in .2s ease-out}@keyframes in{from{transform:translateY(8px);opacity:.4}}}
+</style>
+
+<header class="bar">
+  <h1>Beyond Hedge Fund <span>· low-fidelity mockup, example data</span></h1>
+  <div class="seg" role="group" aria-label="Who is using the app">
+    <button type="button" id="role-client" data-role="client">Client · phone</button>
+    <button type="button" id="role-staff" data-role="staff">Staff · computer</button>
+  </div>
+  <span class="grow"></span>
+  <label class="toggle" for="notes-toggle"><input type="checkbox" id="notes-toggle" checked> Design notes</label>
+  <button type="button" class="btn small" id="reset">Start over</button>
+</header>
+
+<div class="stage" id="stage"></div>
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  // ---------- example data ----------
+  const EUR = new Intl.NumberFormat('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const money = (v, cur = 'EUR') => `${EUR.format(v)} ${cur}`;
+  const signed = (v, cur = 'EUR') => `${v >= 0 ? '▲ +' : '▼ −'}${EUR.format(Math.abs(v))} ${cur}`;
+  const pct = v => `${v >= 0 ? '▲ +' : '▼ −'}${Math.abs(v * 100).toFixed(1)}%`;
+
+  // Client A's account, day by day from 4 Sep to 14 Nov 2026, with a 2,000 EUR deposit on 7 Nov.
+  function history() {
+    let seed = 7;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const start = Date.UTC(2026, 8, 4), days = 72, depositDay = 64;
+    const r = Array.from({ length: days }, (_, i) => (i === 0 ? 0 : (rnd() - 0.47) * 0.012));
+    r[days - 1] = 0.004; // today: a small gain, so the "Today" figure shows something
+    const growth = r.reduce((g, x) => g * (1 + x), 1);
+    const after = r.slice(depositDay + 1).reduce((g, x) => g * (1 + x), 1);
+    const v0 = (10420 - 2000 * after) / growth;
+    const pts = [];
+    let v = v0;
+    for (let i = 0; i < days; i++) {
+      v = i === 0 ? v0 : v * (1 + r[i]);
+      const flow = i === depositDay ? 2000 : 0;
+      v += flow;
+      pts.push({ t: new Date(start + i * 864e5), v, flow, r: r[i] });
+    }
+    return pts;
+  }
+  const HIST = history();
+  const twr = (from) => HIST.filter(p => p.t >= from).reduce((g, p, i) => (i === 0 ? g : g * (1 + p.r)), 1) - 1;
+  const LAST = HIST[HIST.length - 1], PREV = HIST[HIST.length - 2];
+  const CLIENT = {
+    value: LAST.v, today: LAST.v - PREV.v - LAST.flow, todayPct: LAST.r,
+    month: twr(new Date(Date.UTC(2026, 9, 31))), since: twr(HIST[0].t),
+    account: 'cTrader · Live · 5012345',
+  };
+
+  const MENU = {
+    2: { id: 2, name: 'Gold trend', risk: 'Steady', market: 'Gold (XAUUSD), hourly',
+         desc: 'Follows gold’s longer moves. Opens when a move starts and closes when it fades. Usually a few trades a week.',
+         bt: { period: 'Jan 2019 – Oct 2026', total: '+41%', worst: '−11%', won: '58% of 412' }, sizePct: 0.25 },
+    3: { id: 3, name: 'Euro range', risk: 'Careful', market: 'Euro / złoty (EURPLN), hourly',
+         desc: 'Trades the euro against the złoty inside its usual range, with small positions. Several trades a week, small gains and losses.',
+         bt: { period: 'Jan 2019 – Oct 2026', total: '+19%', worst: '−6%', won: '63% of 958' }, sizePct: 0.25 },
+    5: { id: 5, name: 'Gold breakout', risk: 'Bold', market: 'Gold (XAUUSD), 15 minutes',
+         desc: 'Trades sharp breaks out of gold’s recent range. Fewer, larger moves; deeper falls along the way.',
+         bt: { period: 'Jan 2019 – Oct 2026', total: '+66%', worst: '−24%', won: '41% of 233' }, sizePct: 0.5 },
+  };
+  const SMALLEST = 250; // the broker's smallest order, in EUR, for these markets
+
+  const fresh = () => ({
+    role: 'client', view: 'signin', signedIn: false, signinStep: 1, asClient: false,
+    sessions: [{ id: 'gold', setup: 2, since: '3 Oct', result: 312.4, open: 1, budget: 3000 }],
+    limits: { setups: [2, 3], maxPct: 40, max: 2, live: true },
+    add: { step: 1, setup: null, budget: '', code: '' },
+    stopping: null, clientTab: 'sees',
+    activity: [
+      { day: 'Today', items: [['14:00', 'Gold trend bought gold, 2 units at 2,641.47', null]] },
+      { day: 'Yesterday', items: [['18:00', 'Gold trend closed a position', 84.1], ['09:00', 'Gold trend bought gold, 2 units at 2,598.20', null]] },
+      { day: 'Sat 7 Nov', items: [['11:32', 'Deposit from your cTrader account', 2000, 'flow']] },
+      { day: 'Tue 3 Nov', items: [['13:00', 'Gold trend closed a position', -41.3]] },
+    ],
+    audit: [
+      ['13:41', 'Staff · J. Example', 'Client C', 'Signed in to cTrader 7731120 again'],
+      ['11:05', 'Owner', 'Client E', 'Changed limits: sessions at once 3'],
+      ['09:12', 'Client B · person', 'Client B', 'Downloaded the October statement'],
+    ],
+  });
+  let S = fresh();
+
+  const CLIENTS = () => [
+    { id: 'A', name: 'Client A', acct: 'cTrader · Live', value: CLIENT.value, cur: 'EUR', eur: CLIENT.value, month: CLIENT.month, strategies: S.sessions.length, status: ['ok', 'All running'] },
+    { id: 'B', name: 'Client B', acct: 'Bybit · Live', value: 52310.75, cur: 'USDT', eur: 48434.03, month: 0.006, strategies: 1, status: ['warn', 'Cash flows unconfirmed'] },
+    { id: 'C', name: 'Client C', acct: 'cTrader · Live', value: 23880.1, cur: 'EUR', eur: 23880.1, month: -0.012, strategies: 2, status: ['warn', 'Waiting for sign-in'] },
+    { id: 'D', name: 'Client D', acct: 'cTrader · Demo', value: 10000, cur: 'EUR', eur: 0, month: 0, strategies: 0, status: ['', 'No strategy yet'] },
+    { id: 'E', name: 'Client E', acct: 'Bybit · Live', value: 128904.33, cur: 'USDT', eur: 119355.86, month: 0.024, strategies: 3, status: ['ok', 'All running'] },
+    { id: 'F', name: 'Client F', acct: 'cTrader · Live', value: 41207.9, cur: 'EUR', eur: 41207.9, month: 0.009, strategies: 1, status: ['warn', 'Room full'] },
+  ];
+
+  // ---------- notes per screen ----------
+  const NOTES = {
+    signin: { what: ['Login and password, then the 6-digit code: required for every role.', 'No server address and no API key: the app knows the fund’s server. "Connect with an API key" sits under Advanced for the owner.', 'First sign-in (not drawn): set a password, then add the code app from a link or a QR code.'],
+              ask: 'Does a client understand where the 6-digit code comes from?' },
+    home: { what: ['One answer first: what the money is worth, and how it did this month. Returns leave the 7 Nov deposit out.', 'The chart marks the deposit, so the jump is not read as profit.', 'A plain status line: “Everything is running”, or what needs attention.', 'No strategy codes, ticks or parameters.'],
+            ask: 'Task: “How did your money do this month?” Can they answer in 10 seconds, and do they read the deposit as a gain?' },
+    strategies: { what: ['What trades for the client, its result and since when, with Stop.', 'Stop asks in place, not in a pop-up, and says what happens to open positions.'],
+                  ask: 'Open question for you: a client cannot close positions by hand. When they stop a strategy, should its open positions close, or stay for the fund to close?' },
+    add: { what: ['Only setups the fund allowed for this client (Limits on the staff side).', 'Past results come from the fund’s stored backtest, with the period and the worst fall.', 'The budget shows its limit, the room and the smallest order before Start (trading check).', 'A Live account asks for the code again.'],
+           ask: 'Task: “Add a careful strategy with 3,000 EUR.” Do they notice the limit and the room? Is “Careful / Steady / Bold” understood?' },
+    activity: { what: ['Trades, deposits and strategy changes in one list, newest first, in plain words.'],
+                ask: 'Is this enough, or do clients expect prices and fees on each line?' },
+    account: { what: ['Monthly statements, profile, password and code app, signed-in devices, contact.'],
+               ask: 'What should a statement hold? Start and end value, deposits, withdrawals, results by strategy, fees (none yet)?' },
+    overview: { what: ['Money under management, today and this month, across clients.', 'Alerts first: anything failing or waiting, each with the place to fix it.', 'Bybit accounts are in USDT: totals are converted to EUR at today’s rate, and say so.', 'Recent actions come from the audit log.'],
+                ask: 'Open question for you: report totals in EUR, or per currency?' },
+    clients: { what: ['One row per client: account, value in its own currency, this month, strategies, status.', 'Statuses use words and a pattern, not colour alone.'],
+               ask: 'Task (staff): “Which client needs attention first?”' },
+    client: { what: ['“What the client sees” is the client’s Home, so staff and client talk about the same screen.', 'Limits drive what the client can start: change them here and try Add a strategy as the client.', 'View as client opens the client’s phone screens with a banner.'],
+              ask: 'Are the four limits the right ones? Missing: a stop-loss for the whole account?' },
+    trading: { what: ['Today’s Trading, Orders and Session screens move here, restyled in step 3.'], ask: '' },
+    research: { what: ['Today’s Markets, Backtest, Monte Carlo and Strategies move here. New: “Offer to clients” turns a backtested setup into a menu setup.'], ask: '' },
+    admin: { what: ['People and roles, trading accounts (make managed), the strategy menu, the audit log, system health, console, connections, settings.'], ask: '' },
+  };
+
+  // ---------- small pieces ----------
+  const icon = '<span class="ico" aria-hidden="true"></span>';
+  const CLIENT_NAV = [['home', 'Home'], ['strategies', 'Strategies'], ['activity', 'Activity'], ['account', 'Account']];
+  const STAFF_NAV = [['overview', 'Overview'], ['clients', 'Clients'], ['trading', 'Trading'], ['research', 'Research'], ['admin', 'Admin']];
+  const nav = (items, cur) => items.map(([v, l]) => `<a href="#${v}" ${cur === v || (cur === 'add' && v === 'strategies') || (cur === 'client' && v === 'clients') ? 'aria-current="page"' : ''}>${icon}${l}</a>`).join('');
+  const pill = ([kind, text]) => `<span class="pill ${kind}">${text}</span>`;
+  const balance = () => CLIENT.value;
+  const maxBudget = () => Math.floor(balance() * S.limits.maxPct) / 100;
+
+  function chart(w = 340, h = 150, compact = false) {
+    const pad = { l: 8, r: 8, t: 22, b: 22 };
+    const vs = HIST.map(p => p.v), lo = Math.min(...vs), hi = Math.max(...vs);
+    const y0 = Math.floor(lo / 1000) * 1000, y1 = Math.ceil(hi / 1000) * 1000;
+    const x = i => pad.l + (i / (HIST.length - 1)) * (w - pad.l - pad.r);
+    const y = v => pad.t + (1 - (v - y0) / (y1 - y0)) * (h - pad.t - pad.b);
+    const line = HIST.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.v).toFixed(1)}`).join('');
+    const area = `${line}L${x(HIST.length - 1).toFixed(1)},${h - pad.b}L${pad.l},${h - pad.b}Z`;
+    const ticks = [y0, (y0 + y1) / 2, y1].map(v => `<line class="grid" x1="${pad.l}" x2="${w - pad.r}" y1="${y(v)}" y2="${y(v)}"/><text class="ax" x="${pad.l}" y="${y(v) - 4}">${EUR.format(v).replace('.00', '')}</text>`).join('');
+    const months = [['Sep', 0], ['Oct', 27], ['Nov', 58]].map(([m, i]) => `<text class="ax" x="${x(i)}" y="${h - 6}">${m}</text>`).join('');
+    const di = HIST.findIndex(p => p.flow);
+    const dep = `<line class="mark" x1="${x(di)}" x2="${x(di)}" y1="${pad.t - 8}" y2="${h - pad.b}"/><text class="tag" x="${x(di) - 4}" y="${pad.t - 10}" text-anchor="end">Deposit +2,000</text>`;
+    const end = `<circle class="dot" cx="${x(HIST.length - 1)}" cy="${y(LAST.v)}" r="3.5"/>`;
+    return `<figure class="chart" aria-label="Value since joining, ${compact ? '' : 'from 4 Sep to 14 Nov, '}with a 2,000 EUR deposit on 7 Nov"><svg viewBox="0 0 ${w} ${h}" role="img"><title>Value over time</title>${ticks}${months}<path class="area" d="${area}"/><path class="line" d="${line}"/>${dep}${end}</svg></figure>`;
+  }
+
+  // ---------- client screens ----------
+  function clientHome() {
+    const run = S.sessions.map(s => MENU[s.setup].name).join(' and ');
+    return `
+      <section class="card kf" aria-labelledby="pv">
+        <p class="label" id="pv">Your portfolio</p>
+        <p class="big">${money(CLIENT.value)}</p>
+        <div class="stats">
+          <div class="stat"><span class="small mute">Today</span><span class="v">${pct(CLIENT.todayPct)}</span></div>
+          <div class="stat"><span class="small mute">This month</span><span class="v">${pct(CLIENT.month)}</span></div>
+          <div class="stat"><span class="small mute">Since joining</span><span class="v">${pct(CLIENT.since)}</span></div>
+        </div>
+        <p class="small mute">Deposits and withdrawals are not counted as gains. Updated 2 s ago.</p>
+      </section>
+      <section class="card"><div class="row"><h3 class="grow">Value since joining</h3><span class="small mute">4 Sep – today</span></div>${chart()}</section>
+      <section class="card">
+        <div class="row"><span class="pill ok">Everything is running</span></div>
+        <p>${S.sessions.length ? `${S.sessions.length} ${S.sessions.length === 1 ? 'strategy trades' : 'strategies trade'} for you: <strong>${run}</strong>.` : 'No strategy trades for you right now.'}</p>
+        <a class="btn" href="#strategies">See your strategies</a>
+      </section>
+      <section class="card"><div class="row"><h3 class="grow">Latest</h3><a class="small" href="#activity">All activity</a></div>
+        <ul class="list">${S.activity[0].items.concat(S.activity[1].items).slice(0, 3).map(activityRow).join('')}</ul></section>`;
+  }
+
+  function activityRow([time, text, amount, kind]) {
+    const amt = amount == null ? '' : `<span class="num">${kind === 'flow' ? '+' + money(amount) : signed(amount)}</span>`;
+    return `<li><span class="num small mute">${time}</span><span class="grow">${text}</span>${amt}</li>`;
+  }
+
+  function clientStrategies() {
+    const rows = S.sessions.map(s => {
+      const m = MENU[s.setup];
+      const confirm = S.stopping === s.id ? `
+        <div class="card attn" role="group" aria-label="Stop ${m.name}?">
+          <p><strong>Stop ${m.name}?</strong> It opens nothing new. Its ${s.open} open position${s.open === 1 ? '' : 's'} stay${s.open === 1 ? 's' : ''} open until the fund closes ${s.open === 1 ? 'it' : 'them'}.</p>
+          <div class="row"><button class="btn primary" data-act="stop-yes" data-id="${s.id}">Stop it</button><button class="btn quiet" data-act="stop-no">Keep it running</button></div>
+        </div>` : '';
+      return `<li style="display:grid;gap:var(--s3)">
+        <div class="row"><strong class="grow">${m.name}</strong><span class="pill">${m.risk}</span></div>
+        <p class="small mute">${m.market} · since ${s.since} · budget ${money(s.budget)}</p>
+        <div class="row"><span class="grow">${s.result || s.open ? `Result so far <span class="num">${signed(s.result)}</span>` : 'No trades yet'}</span>
+          ${S.stopping === s.id ? '' : `<button class="btn small" data-act="stop" data-id="${s.id}">Stop</button>`}</div>${confirm}</li>`;
+    }).join('');
+    const full = S.sessions.length >= S.limits.max;
+    return `
+      <div class="head"><h2>Strategies</h2></div>
+      <section class="card"><h3>Trading for you</h3>
+        ${S.sessions.length ? `<ul class="list">${rows}</ul>` : '<p class="mute">Nothing trades for you right now. Add a strategy from the fund’s menu.</p>'}
+      </section>
+      <section class="card">
+        <h3>Add a strategy</h3>
+        <p class="small mute">Choose from the strategies the fund offers you. You can run ${S.limits.max} at once${full ? '; you run that many now' : ''}.</p>
+        <button class="btn primary block" data-act="add-start" ${full ? 'disabled' : ''}>Add a strategy</button>
+        ${full ? '<p class="small">Stop one first, or ask the fund for more room.</p>' : ''}
+      </section>`;
+  }
+
+  function stepper(n) {
+    return `<div class="steps" aria-label="Step ${n} of 3">${['Choose', 'Budget', 'Confirm'].map((l, i) => `<span class="${i < n ? 'on' : ''}">${i + 1}. ${l}</span>`).join('')}</div>`;
+  }
+
+  function budgetCheck(b) {
+    const m = MENU[S.add.setup], max = maxBudget();
+    if (b === '' || isNaN(b)) return { ok: false, msg: '' };
+    if (b > max) return { ok: false, msg: `Your limit is ${money(max)} for this account. Lower the budget, or ask the fund to raise the limit.` };
+    const size = b * m.sizePct;
+    if (size < SMALLEST) return { ok: false, msg: `Each position would be ${money(size)}, below the broker’s smallest order (${money(SMALLEST)}). Use at least ${money(SMALLEST / m.sizePct)}.` };
+    return { ok: true, size, room: Math.round(1 / m.sizePct) };
+  }
+
+  function clientAdd() {
+    const a = S.add;
+    if (a.step === 1) {
+      const items = S.limits.setups.map(id => MENU[id]).map(m => `
+        <button class="choice" type="button" data-act="pick" data-id="${m.id}" aria-pressed="${a.setup === m.id}">
+          <span class="row"><strong class="grow">${m.name}</strong><span class="pill">${m.risk}</span></span>
+          <span class="small mute">${m.market}</span>
+          <span class="small">${m.desc}</span>
+          <span class="label">Past results, ${m.bt.period}</span>
+          <span class="facts"><span><span class="small mute">In total</span><br><span class="num v">${m.bt.total}</span></span><span><span class="small mute">Worst fall</span><br><span class="num v">${m.bt.worst}</span></span><span><span class="small mute">Trades won</span><br><span class="num v">${m.bt.won}</span></span></span>
+        </button>`).join('');
+      return `<p class="crumbs"><a href="#strategies">Strategies</a> / Add</p>
+        <div class="head"><h2>Choose a strategy</h2></div>${stepper(1)}
+        <div style="display:grid;gap:var(--s3)">${items}</div>
+        <p class="small mute">Past results come from the fund’s tests on past prices. They do not promise future results.</p>
+        <button class="btn primary block" data-act="next" ${a.setup ? '' : 'disabled'}>Next</button>`;
+    }
+    const m = MENU[a.setup], b = a.budget === '' ? '' : Number(a.budget), c = budgetCheck(b);
+    if (a.step === 2) {
+      return `<p class="crumbs"><a href="#strategies">Strategies</a> / Add</p>
+        <div class="head"><h2>Budget for ${m.name}</h2></div>${stepper(2)}
+        <div class="card">
+          <div class="field">
+            <label for="budget">How much of your money may it use?</label>
+            <input id="budget" type="text" inputmode="decimal" autocomplete="off" value="${a.budget}" aria-describedby="budget-hint budget-err">
+            <span class="hint" id="budget-hint">At most ${money(maxBudget())} (${S.limits.maxPct}% of your balance). Its results add to it or take from it.</span>
+            <span id="budget-err">${c.msg ? `<span class="err">${c.msg}</span>` : ''}</span>
+          </div>
+        </div>
+        <div class="card" id="room" aria-live="polite">${roomHtml(c)}</div>
+        <div class="row"><button class="btn quiet" data-act="back">Back</button><span class="grow"></span><button class="btn primary" data-act="next" id="to-confirm" ${c.ok ? '' : 'disabled'}>Next</button></div>`;
+    }
+    if (a.step === 3) {
+      return `<p class="crumbs"><a href="#strategies">Strategies</a> / Add</p>
+        <div class="head"><h2>Start ${m.name}?</h2></div>${stepper(3)}
+        <div class="card">
+          <dl style="display:grid;grid-template-columns:auto 1fr;gap:var(--s2) var(--s4)">
+            <dt class="mute small">Strategy</dt><dd>${m.name} · ${m.risk}</dd>
+            <dt class="mute small">Market</dt><dd>${m.market}</dd>
+            <dt class="mute small">Budget</dt><dd class="num">${money(b)}</dd>
+            <dt class="mute small">Each position</dt><dd class="num">${money(c.size)}</dd>
+            <dt class="mute small">At once</dt><dd>up to ${c.room} positions</dd>
+            <dt class="mute small">Account</dt><dd>${CLIENT.account}</dd>
+          </dl>
+        </div>
+        ${S.limits.live ? `<div class="card attn">
+          <p><strong>This account trades real money.</strong> Enter the 6-digit code from your code app to start.</p>
+          <div class="field"><label for="code">6-digit code</label><input id="code" class="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" value="${a.code}"></div>
+        </div>
+        <div class="row"><button class="btn quiet" data-act="back">Back</button><span class="grow"></span><button class="btn primary" data-act="start" id="start" ${/^\d{6}$/.test(a.code) ? '' : 'disabled'}>Start ${m.name}</button></div>`
+        : `<div class="card attn"><p><strong>The fund has not allowed strategies on your real-money account yet.</strong> Ask the fund to allow it; nothing has started.</p></div>
+        <div class="row"><button class="btn quiet" data-act="back">Back</button></div>`}`;
+    }
+    return '';
+  }
+
+  function roomHtml(c) {
+    if (!c.ok) return '<p class="small mute">Type a budget to see how many positions fit and how big each is.</p>';
+    return `<p><strong>Room for ${c.room} positions at once,</strong> <span class="num">${money(c.size)}</span> each.</p><p class="small mute">Each reaches the broker’s smallest order. A position opens only when the strategy sees its signal.</p>`;
+  }
+
+  function clientActivity() {
+    return `<div class="head"><h2>Activity</h2></div>
+      ${S.activity.map(d => `<section class="card"><h3 class="label">${d.day}</h3><ul class="list">${d.items.map(activityRow).join('')}</ul></section>`).join('')}`;
+  }
+
+  function clientAccount() {
+    return `<div class="head"><h2>Account</h2></div>
+      <section class="card"><h3>Statements</h3><ul class="list">
+        ${['October 2026', 'September 2026'].map(m => `<li><span class="grow">${m}</span><a class="btn small" href="#account" data-act="stmt">Open</a></li>`).join('')}
+      </ul></section>
+      <section class="card"><h3>Sign-in and security</h3><ul class="list">
+        <li><span class="grow">Password</span><button class="btn small">Change</button></li>
+        <li><span class="grow">Code app<br><span class="small mute">Asked at sign-in and for real-money actions</span></span><button class="btn small">Replace</button></li>
+        <li><span class="grow">Signed in on<br><span class="small mute">This phone · MacBook (last week)</span></span><button class="btn small">Sign out others</button></li>
+      </ul></section>
+      <section class="card"><h3>Your account at the broker</h3><p>${CLIENT.account}</p><p class="small mute">Deposits and withdrawals happen at the broker. They show here within the hour.</p></section>
+      <section class="card"><h3>Questions</h3><p>Write to the fund at <span class="num">support@example.com</span>.</p></section>
+      <button class="btn block" data-act="signout">Sign out</button>`;
+  }
+
+  function signin() {
+    if (S.signinStep === 1) return `
+      <div style="display:grid;gap:var(--s5);padding-top:var(--s6)">
+        <div><p class="label">Beyond Hedge Fund</p><h2 style="font-size:var(--t-xl)">Sign in</h2></div>
+        <div class="field"><label for="login">Login</label><input id="login" type="text" autocomplete="username" value="client.a"></div>
+        <div class="field"><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" value="example-pass"></div>
+        <button class="btn primary block" data-act="signin-next">Continue</button>
+        <details class="small"><summary>Advanced</summary><p class="mute" style="margin-top:var(--s2)">Connect to a bot with its address and API key (owner only).</p></details>
+      </div>`;
+    return `
+      <div style="display:grid;gap:var(--s5);padding-top:var(--s6)">
+        <div><p class="label">Beyond Hedge Fund</p><h2 style="font-size:var(--t-xl)">Your 6-digit code</h2></div>
+        <p>Open your code app and type the code it shows for Beyond Hedge Fund.</p>
+        <div class="field"><label for="code-in">6-digit code</label><input id="code-in" class="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>
+        <button class="btn primary block" data-act="signin-done" id="signin-done" disabled>Sign in</button>
+        <button class="btn quiet" data-act="signin-back">Use another login</button>
+      </div>`;
+  }
+
+  // ---------- staff screens ----------
+  function overview() {
+    const cs = CLIENTS(), aum = cs.reduce((s, c) => s + c.eur, 0);
+    const alerts = [
+      ['Client C', 'Gold trend is waiting for its account to sign in again.', 'Open client', '#client'],
+      ['Market data', 'EURPLN hourly candles are 17 h old; Euro range sessions skip their ticks.', 'Open Trading', '#trading'],
+      ['Client F', 'Euro range has no room: 4 of 4 positions open.', 'Open client', '#client'],
+      ['Client B', 'October’s deposits and withdrawals are not confirmed by Bybit yet.', 'Enter by hand', '#client'],
+    ];
+    return `<div class="head"><h2>Overview</h2><span class="small mute">Saturday 14 Nov · 14:05 UTC</span></div>
+      <section class="card kf"><p class="label">Under management, ${cs.filter(c => c.eur).length} live clients</p>
+        <p class="big">≈ ${money(aum)}</p>
+        <div class="stats"><div class="stat"><span class="small mute">Today</span><span class="v">${signed(1920.4)}</span></div><div class="stat"><span class="small mute">This month</span><span class="v">${pct(0.014)}</span></div><div class="stat"><span class="small mute">Strategies running</span><span class="v">${cs.reduce((s, c) => s + c.strategies, 0)}</span></div></div>
+        <p class="small mute">USDT accounts converted at 1 USDT = 0.9259 EUR. Demo accounts not counted.</p></section>
+      <section class="card"><div class="row"><h3 class="grow">Needs attention</h3><span class="pill warn">${alerts.length}</span></div>
+        <ul class="list">${alerts.map(([who, what, act, href]) => `<li><span class="grow"><strong>${who}</strong> · ${what}</span><a class="btn small" href="${href}">${act}</a></li>`).join('')}</ul></section>
+      <div class="grid2">
+        <section class="card"><h3>Clients this month</h3><ul class="list">${cs.filter(c => c.eur).sort((a, b) => b.month - a.month).map(c => `<li><a class="grow" href="#client">${c.name}</a><span class="num">${pct(c.month)}</span></li>`).join('')}</ul></section>
+        <section class="card"><div class="row"><h3 class="grow">Recent actions</h3><a class="small" href="#admin">Audit log</a></div><ul class="list">${S.audit.slice(0, 5).map(([t, who, client, what]) => `<li><span class="num small mute">${t}</span><span class="grow"><strong>${who}</strong> · ${client}<br><span class="small">${what}</span></span></li>`).join('')}</ul></section>
+      </div>`;
+  }
+
+  function clients() {
+    const rows = CLIENTS().map(c => `<tr class="link" data-act="open-client" tabindex="0"><td><strong>${c.name}</strong></td><td>${c.acct}</td><td class="r num">${money(c.value, c.cur)}</td><td class="r num">${pct(c.month)}</td><td class="r num">${c.strategies}</td><td>${pill(c.status)}</td></tr>`).join('');
+    return `<div class="head"><h2>Clients</h2><button class="btn primary">Add a client</button></div>
+      <div class="field" style="max-width:320px"><label for="find" class="vh">Find a client</label><input id="find" type="text" placeholder="Find a client"></div>
+      <div class="table-wrap"><table><caption class="vh">Clients</caption><thead><tr><th>Client</th><th>Account</th><th class="r">Value</th><th class="r">This month</th><th class="r">Strategies</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="small mute">Only Client A opens in this mockup.</p>`;
+  }
+
+  function clientPage() {
+    const tabs = [['sees', 'What the client sees'], ['sessions', 'Strategies'], ['limits', 'Limits'], ['people', 'Account and people'], ['statements', 'Statements']];
+    const L = S.limits;
+    const body = {
+      sees: `<div class="grid2"><section class="card kf"><p class="label">Portfolio</p><p class="big">${money(CLIENT.value)}</p><div class="stats"><div class="stat"><span class="small mute">This month</span><span class="v">${pct(CLIENT.month)}</span></div><div class="stat"><span class="small mute">Since joining</span><span class="v">${pct(CLIENT.since)}</span></div></div></section><section class="card">${chart(420, 160, true)}</section></div>`,
+      sessions: `<div class="table-wrap"><table><thead><tr><th>Strategy</th><th>Market</th><th class="r">Budget</th><th class="r">Result</th><th class="r">Open</th><th>Started by</th><th></th></tr></thead><tbody>${S.sessions.map(s => `<tr><td>${MENU[s.setup].name} <span class="small mute">· setup ${s.setup}</span></td><td>${MENU[s.setup].market}</td><td class="r num">${money(s.budget)}</td><td class="r num">${signed(s.result)}</td><td class="r num">${s.open}</td><td>${s.by || 'Staff'}</td><td><button class="btn small" data-act="stop-yes" data-id="${s.id}">Stop</button></td></tr>`).join('') || '<tr><td colspan="7" class="mute">Nothing running.</td></tr>'}</tbody></table></div>
+        <div class="row"><button class="btn">Start a strategy for Client A</button><span class="small mute">Any setup, not only the menu.</span></div>`,
+      limits: `<form class="card" id="limits-form" style="max-width:560px">
+        <fieldset class="field" style="border:0;padding:0;margin:0"><legend class="lbl">Menu setups this client may start</legend>
+          ${Object.values(MENU).map(m => `<label class="check"><input type="checkbox" name="setup" value="${m.id}" ${L.setups.includes(m.id) ? 'checked' : ''}> ${m.name} · ${m.risk}</label>`).join('')}</fieldset>
+        <div class="field"><label for="lim-pct">Largest budget, % of balance</label><input id="lim-pct" type="number" min="1" max="100" value="${L.maxPct}"><span class="hint">Now ${money(maxBudget())}.</span></div>
+        <div class="field"><label for="lim-max">Strategies at once</label><input id="lim-max" type="number" min="0" max="10" value="${L.max}"></div>
+        <label class="check"><input type="checkbox" id="lim-live" ${L.live ? 'checked' : ''}> May start strategies on a Live account</label>
+        <div class="row"><button class="btn primary" type="submit">Save limits</button><span class="small mute">Then try Add a strategy as the client.</span></div></form>`,
+      people: `<div class="grid2"><section class="card"><h3>Trading account</h3><p>${CLIENT.account}</p><p class="small mute">Managed: the server opens it with its recovery key. Linked 4 Sep by the owner.</p></section>
+        <section class="card"><h3>People who sign in</h3><ul class="list"><li><span class="grow">client.a<br><span class="small mute">Code app set · last sign-in today 13:58</span></span><button class="btn small">Reset code</button></li></ul><button class="btn small">Invite a person</button></section></div>`,
+      statements: `<section class="card"><ul class="list">${['October 2026', 'September 2026'].map(m => `<li><span class="grow">${m}</span><button class="btn small">Open</button></li>`).join('')}</ul></section>`,
+    }[S.clientTab];
+    return `<p class="crumbs"><a href="#clients">Clients</a> / Client A</p>
+      <div class="head"><h2>Client A</h2><span class="pill ok">All running</span><button class="btn" data-act="as-client">View as client</button></div>
+      <div class="tabs" role="tablist">${tabs.map(([k, l]) => `<button role="tab" type="button" aria-selected="${S.clientTab === k}" data-act="tab" data-id="${k}">${l}</button>`).join('')}</div>
+      <div role="tabpanel">${body}</div>`;
+  }
+
+  const later = (title, text) => `<div class="head"><h2>${title}</h2></div><div class="placeholder"><strong>Not drawn in this mockup</strong><p>${text}</p></div>`;
+
+  // ---------- render ----------
+  const CLIENT_VIEWS = { signin, home: clientHome, strategies: clientStrategies, add: clientAdd, activity: clientActivity, account: clientAccount };
+  const STAFF_VIEWS = { overview, clients, client: clientPage,
+    trading: () => later('Trading', 'Every running session across accounts in one table, the start form with budget and room, positions and orders. Today’s Trading, Orders and Session screens.'),
+    research: () => later('Research', 'Markets and charts, Backtest with Monte Carlo, saved runs, the strategies catalog, and “Offer to clients”.'),
+    admin: () => later('Admin', 'People and roles, trading accounts, the strategy menu, the audit log, system health, console, connections, settings, install.') };
+
+  function notesHtml() {
+    const n = NOTES[S.view] || { what: [], ask: '' };
+    const views = S.role === 'client' ? ['signin', ...CLIENT_NAV.map(x => x[0]), 'add'] : [...STAFF_NAV.map(x => x[0]), 'client'];
+    return `<aside class="notes" aria-label="Design notes">
+      <h2>Design notes</h2><ul>${n.what.map(w => `<li>${w}</li>`).join('')}</ul>
+      ${n.ask ? `<div class="q"><p class="label">To find out</p><p class="small">${n.ask}</p></div>` : ''}
+      <div><p class="label">Screens</p><div class="screens">${views.map(v => `<a href="#${v}">${v}</a>`).join(' · ')}</div></div>
+    </aside>`;
+  }
+
+  function render() {
+    document.getElementById('role-client').setAttribute('aria-pressed', S.role === 'client');
+    document.getElementById('role-staff').setAttribute('aria-pressed', S.role === 'staff');
+    const stage = document.getElementById('stage');
+    if (S.role === 'client') {
+      const view = CLIENT_VIEWS[S.view] ? S.view : 'home';
+      const inside = CLIENT_VIEWS[view]();
+      const chrome = view !== 'signin';
+      stage.innerHTML = `
+        <div class="phone">
+          ${S.asClient ? '<div class="viewing"><span>Viewing as Client A</span><button type="button" data-act="back-staff">Back to staff</button></div>' : ''}
+          ${chrome ? `<div class="appbar"><span class="brand">Beyond Hedge Fund</span><span class="grow" style="flex:1"></span><span class="pill">${CLIENT.account}</span></div>` : ''}
+          <div class="scroll">${inside}</div>
+          ${chrome ? `<nav class="tabbar" aria-label="Main">${nav(CLIENT_NAV, view)}</nav>` : ''}
+        </div>${notesHtml()}`;
+    } else {
+      const view = STAFF_VIEWS[S.view] ? S.view : 'overview';
+      stage.innerHTML = `
+        <div class="desk">
+          <nav class="side" aria-label="Main"><span class="brand">Beyond Hedge Fund</span>${nav(STAFF_NAV, view)}<div class="who">J. Example · staff<br><span class="mute">Sign out</span></div></nav>
+          <main>${STAFF_VIEWS[view]()}</main>
+        </div>${notesHtml()}`;
+    }
+  }
+
+  function go(view) {
+    if (location.hash.slice(1) !== view) location.hash = view; else { route(); }
+  }
+
+  function route() {
+    const v = location.hash.slice(1);
+    if (CLIENT_VIEWS[v]) { S.role = 'client'; S.view = v; if (v !== 'signin') S.signedIn = true; }
+    else if (STAFF_VIEWS[v]) { S.role = 'staff'; S.view = v; S.asClient = false; }
+    else { S.view = S.role === 'client' ? (S.signedIn ? 'home' : 'signin') : 'overview'; }
+    if (S.view === 'add' && !S.add.setup && S.add.step !== 1) S.add.step = 1;
+    render();
+    const scroller = document.querySelector('.phone .scroll, .desk main');
+    if (scroller) scroller.scrollTop = 0;
+  }
+
+  function toast(text) {
+    const t = document.createElement('div');
+    t.className = 'toast'; t.textContent = text;
+    document.getElementById('toasts').append(t);
+    setTimeout(() => t.remove(), 3500);
+  }
+
+  // ---------- events ----------
+  document.addEventListener('click', e => {
+    const roleBtn = e.target.closest('[data-role]');
+    if (roleBtn) { S.role = roleBtn.dataset.role; S.asClient = false; go(S.role === 'client' ? (S.signedIn ? 'home' : 'signin') : 'overview'); return; }
+    const el = e.target.closest('[data-act]');
+    if (!el) return;
+    const act = el.dataset.act, id = el.dataset.id;
+    switch (act) {
+      case 'signin-next': S.signinStep = 2; render(); document.getElementById('code-in')?.focus(); break;
+      case 'signin-back': S.signinStep = 1; render(); break;
+      case 'signin-done': S.signedIn = true; S.signinStep = 1; go('home'); break;
+      case 'signout': S.signedIn = false; go('signin'); break;
+      case 'stop': S.stopping = id; render(); break;
+      case 'stop-no': S.stopping = null; render(); break;
+      case 'stop-yes': {
+        const s = S.sessions.find(x => x.id === id);
+        S.sessions = S.sessions.filter(x => x.id !== id); S.stopping = null;
+        if (s) {
+          S.activity[0].items.unshift(['14:06', `${S.role === 'client' ? 'You' : 'The fund'} stopped ${MENU[s.setup].name}`, null]);
+          S.audit.unshift(['14:06', S.role === 'client' ? 'Client A · person' : 'Staff · J. Example', 'Client A', `Stopped ${MENU[s.setup].name}`]);
+          toast(`${MENU[s.setup].name} stopped`);
+        }
+        render(); break;
+      }
+      case 'add-start': S.add = { step: 1, setup: null, budget: '', code: '' }; go('add'); break;
+      case 'pick': S.add.setup = Number(id); render(); break;
+      case 'next': S.add.step++; render(); document.querySelector('#budget, #code')?.focus(); break;
+      case 'back': S.add.step--; render(); break;
+      case 'start': {
+        const m = MENU[S.add.setup], b = Number(S.add.budget);
+        const nid = 's' + Date.now();
+        S.sessions.push({ id: nid, setup: m.id, since: '14 Nov', result: 0, open: 0, budget: b, by: 'Client' });
+        S.activity[0].items.unshift(['14:05', `You started ${m.name} with ${money(b)}`, null]);
+        S.audit.unshift(['14:05', 'Client A · person', 'Client A', `Started ${m.name} (setup ${m.id}) with ${money(b)} · Live, code checked`]);
+        S.add = { step: 1, setup: null, budget: '', code: '' };
+        toast(`${m.name} started. It trades on the next hourly candle.`);
+        go('strategies'); break;
+      }
+      case 'tab': S.clientTab = id; render(); break;
+      case 'open-client': go('client'); break;
+      case 'as-client': S.asClient = true; S.signedIn = true; go('home'); break;
+      case 'back-staff': S.asClient = false; go('client'); break;
+      case 'stmt': e.preventDefault(); toast('Statements are a later step (phase 6).'); break;
+    }
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.matches('tr[data-act="open-client"]')) go('client');
+  });
+
+  document.addEventListener('input', e => {
+    if (e.target.id === 'budget') {
+      S.add.budget = e.target.value.replace(/[^\d.]/g, '');
+      const b = S.add.budget === '' ? '' : Number(S.add.budget), c = budgetCheck(b);
+      document.getElementById('budget-err').innerHTML = c.msg ? `<span class="err">${c.msg}</span>` : '';
+      document.getElementById('room').innerHTML = roomHtml(c);
+      document.getElementById('to-confirm').disabled = !c.ok;
+      e.target.setAttribute('aria-invalid', c.msg ? 'true' : 'false');
+    }
+    if (e.target.id === 'code') { S.add.code = e.target.value.replace(/\D/g, '').slice(0, 6); document.getElementById('start').disabled = !/^\d{6}$/.test(S.add.code); }
+    if (e.target.id === 'code-in') document.getElementById('signin-done').disabled = !/^\d{6}$/.test(e.target.value.replace(/\D/g, ''));
+  });
+
+  document.addEventListener('submit', e => {
+    if (e.target.id !== 'limits-form') return;
+    e.preventDefault();
+    const f = e.target;
+    S.limits = {
+      setups: [...f.querySelectorAll('input[name=setup]:checked')].map(i => Number(i.value)),
+      maxPct: Math.min(100, Math.max(1, Number(f.querySelector('#lim-pct').value) || 1)),
+      max: Math.max(0, Number(f.querySelector('#lim-max').value) || 0),
+      live: f.querySelector('#lim-live').checked,
+    };
+    S.audit.unshift(['14:07', 'Staff · J. Example', 'Client A', `Changed limits: ${S.limits.setups.length} setups, ${S.limits.maxPct}% budget, ${S.limits.max} at once`]);
+    toast('Limits saved'); render();
+  });
+
+  const notes = document.getElementById('notes-toggle');
+  try { if (localStorage.getItem('mockup-notes') === 'off') { notes.checked = false; document.body.classList.add('no-notes'); } } catch {}
+  notes.addEventListener('change', () => {
+    document.body.classList.toggle('no-notes', !notes.checked);
+    try { localStorage.setItem('mockup-notes', notes.checked ? 'on' : 'off'); } catch {}
+  });
+  document.getElementById('reset').addEventListener('click', () => { S = fresh(); go('signin'); });
+
+  window.addEventListener('hashchange', route);
+  route();
+})();
+</script>
