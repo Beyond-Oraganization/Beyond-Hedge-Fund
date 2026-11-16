@@ -7,6 +7,7 @@ import { AccountValue } from '../portfolio/Home.tsx'
 import { ClientRead } from '../portfolio/ClientRead.tsx'
 import { usePortfolio } from '../portfolio/portfolio.ts'
 import { LimitsCard } from '../menu/LimitsCard.tsx'
+import { StatementsCard } from '../statements/StatementsCard.tsx'
 import { readiness, useClients, useManaged, type Client } from './clients.ts'
 
 /** Runs one change to a client (link or unlink) and keeps the bot's refusal to show it in place. */
@@ -174,6 +175,7 @@ export default function ClientPage() {
               <>
                 <PageHeader title={client.name} crumbs={[{ label: 'Clients', to: '/clients' }]} meta={<Badge tone={ready.tone}>{ready.words}</Badge>} />
                 <WhatTheClientSees client={client} />
+                <StatementsCard client={client.id} base={`/clients/${client.id}/statements`} />
                 <Accounts client={client} />
                 <People client={client} />
                 <LimitsCard client={client.id} />

@@ -318,7 +318,7 @@ for (const theme of ['classic', 'light'] as const) {
   test(`every screen passes axe (${theme} theme)`, async ({ page }) => {
     if (theme === 'light') await page.addInitScript(() => localStorage.setItem('beyondia-theme', 'light'))
     await connected(page)
-    for (const route of ['', 'trading', 'markets', 'markets/XAUUSD/1h', 'backtest', 'orders', 'strategies', 'console', 'system', 'settings', 'account', 'connections', 'install', 'connect', 'signin', 'me', 'home', 'activity', 'overview', 'clients', 'clients/1', 'clients/1/view', 'people', 'managed', 'audit', 'my-strategies', 'menu']) {
+    for (const route of ['', 'trading', 'markets', 'markets/XAUUSD/1h', 'backtest', 'orders', 'strategies', 'console', 'system', 'settings', 'account', 'connections', 'install', 'connect', 'signin', 'me', 'home', 'activity', 'overview', 'clients', 'clients/1', 'clients/1/view', 'people', 'managed', 'audit', 'my-strategies', 'menu', 'me/statements/2026-10', 'clients/1/statements/2026-10']) {
       await page.goto(`#/${route}`)
       // The screen being left can stay in the page, hidden, while the next one loads: wait for a visible heading.
       await page.locator('main h1').filter({ visible: true }).first().waitFor()

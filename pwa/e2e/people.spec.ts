@@ -87,6 +87,21 @@ test('a client starts at Home, sees their money and what happened, and stays in 
   await expect(page.getByRole('heading', { level: 1, name: 'Your account' })).toBeVisible()
   await expect(page.getByText('demo, in EUR')).toBeVisible()
 
+  // Last month's statement, ready to print, from Account.
+  const lastMonth = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - 1, 1))
+  const name = lastMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  await page.getByRole('region', { name: 'Statements' }).getByRole('link', { name }).click()
+  await expect(page).toHaveURL(new RegExp(`#/me/statements/${lastMonth.toISOString().slice(0, 7)}$`))
+  await expect(page.getByRole('heading', { level: 1, name: `Statement for ${name}` })).toBeVisible()
+  await expect(page.getByRole('rowheader', { name: 'What trading made' }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Print or save as PDF' })).toBeVisible()
+  // On paper: the statement only, its positions as a table even on a phone.
+  await page.emulateMedia({ media: 'print' })
+  await expect(page.getByRole('button', { name: 'Print or save as PDF' })).toBeHidden()
+  await expect(page.locator('.hdr')).toBeHidden()
+  await expect(page.locator('.k-statement table.tbl').first()).toBeVisible()
+  await page.emulateMedia({ media: 'screen' })
+
   await page.goto('#/markets')
   await expect(page).toHaveURL(/#\/home$/)
 })
