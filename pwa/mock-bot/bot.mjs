@@ -483,7 +483,7 @@ export function createBot(options = {}) {
       return {
         id: p.orderId, symbol: p.symbol, side: p.side, quantity: p.quantity, entryPrice: p.price, currentPrice: current,
         unrealizedProfit: round(converted.ok ? converted.value : raw, 2), profitCurrency: converted.ok ? s.account.currency : symbolInfo(p.symbol).quote,
-        inAccountCurrency: converted.ok, isConverted: converted.converted, isPending: false, openedAt: new Date(p.createdAt).toISOString(),
+        inAccountCurrency: converted.ok, isConverted: converted.converted, isPending: false, openedAt: new Date(p.createdAt).toISOString(), priceSource: 'quote',
       }
     })
     const unrealized = round(positions.filter((p) => p.inAccountCurrency).reduce((sum, p) => sum + p.unrealizedProfit, 0), 2)

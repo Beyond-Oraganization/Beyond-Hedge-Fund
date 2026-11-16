@@ -143,6 +143,23 @@ describe('Session', () => {
     expect(system).toHaveTextContent(/working set/)
   })
 
+  it('marks a position valued at its last close (a closed market), and says why', async () => {
+    const live = await bot.run(['session', '--json'])
+    const json = live.json as { positions: { priceSource?: string }[] }
+    json.positions = json.positions.map((position) => ({ ...position, priceSource: 'lastClose' }))
+    overrides.push(['session', () => answer({ ...live, json })])
+    show(<Session />)
+    const table = await screen.findByRole('table', { name: 'Open positions and pending orders' })
+    expect(within(table).getAllByText(/†$/).length).toBeGreaterThan(0)
+    expect(screen.getByText(/† last close: the market is closed or has not ticked yet/)).toBeInTheDocument()
+  })
+
+  it('shows no mark while prices are live', async () => {
+    show(<Session />)
+    await screen.findByRole('table', { name: 'Open positions and pending orders' })
+    expect(screen.queryByText(/† last close/)).not.toBeInTheDocument()
+  })
+
   it('says this device has no trading account (exit code 3) and offers to add one', async () => {
     overrides.push(['session', failed(3, 'You need to log in first.', "Run 'login' (or 'register' to create an account).")])
     show(<Session />)

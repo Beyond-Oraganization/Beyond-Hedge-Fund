@@ -77,6 +77,7 @@ function Positions({ snapshot }: { snapshot: SessionSnapshot }) {
   const [closing, setClosing] = useState<PositionSnapshot | null>(null)
   const converted = snapshot.positions.some((p) => p.isConverted)
   const unconverted = snapshot.positions.some((p) => !p.inAccountCurrency && !p.isPending)
+  const atClose = snapshot.positions.some((p) => p.priceSource === 'lastClose')
   return (
     <Section label="Open positions">
       <div className="section-title">
@@ -94,7 +95,13 @@ function Positions({ snapshot }: { snapshot: SessionSnapshot }) {
               { key: 'side', header: 'Side', card: 'sub', render: (p) => <Pill tone={p.side === 'Buy' ? 'solid' : undefined}>{p.side}</Pill> },
               { key: 'size', header: 'Size', align: 'right', render: (p) => fmtNumber(p.quantity) },
               { key: 'entry', header: 'Entry', align: 'right', render: (p) => fmtPrice(p.entryPrice) },
-              { key: 'price', header: 'Price', align: 'right', render: (p) => fmtPrice(p.currentPrice) },
+              {
+                key: 'price',
+                header: 'Price',
+                align: 'right',
+                // A last close (the market is closed, or has not ticked yet) is marked, so it is not read as live.
+                render: (p) => (p.priceSource === 'lastClose' ? <span title="Last close: no live price yet">{fmtPrice(p.currentPrice)} †</span> : fmtPrice(p.currentPrice)),
+              },
               {
                 key: 'pnl',
                 header: 'Unrealized P/L',
@@ -118,9 +125,9 @@ function Positions({ snapshot }: { snapshot: SessionSnapshot }) {
               </Button>
             )}
           />
-          {converted || unconverted ? (
+          {converted || unconverted || atClose ? (
             <p className="hint" style={{ marginTop: 12 }}>
-              {[converted && '≈ converted from the quote currency at current prices', unconverted && '* in the symbol’s quote currency (no conversion available), not included in equity']
+              {[atClose && '† last close: the market is closed or has not ticked yet, so these positions are valued at their last price', converted && '≈ converted from the quote currency at current prices', unconverted && '* in the symbol’s quote currency (no conversion available), not included in equity']
                 .filter(Boolean)
                 .join('; ')}
             </p>
