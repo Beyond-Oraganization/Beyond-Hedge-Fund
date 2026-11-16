@@ -6,6 +6,10 @@ import { setupServer } from 'msw/node'
 import type { ReactElement } from 'react'
 import { MemoryRouter } from 'react-router'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { createBot } from '../../../mock-bot/bot.mjs'
+import { createClients } from '../../../mock-bot/clients.mjs'
+import { createMenu } from '../../../mock-bot/menu.mjs'
+import { createPeople } from '../../../mock-bot/people.mjs'
 import { createPortfolio } from '../../../mock-bot/portfolio.mjs'
 import { queryClient } from '../../api/bot.ts'
 import type { CommandResult } from '../../api/types.ts'
@@ -21,7 +25,8 @@ import { cashFlowsUnconfirmed, parsePortfolio, type AccountPortfolio } from './p
  */
 const BOT_URL = 'https://fund.test:8443'
 const KEY = 'k'.repeat(40)
-type Name = 'portfolio' | 'activity'
+type Name = 'portfolio' | 'activity' | 'session' | 'menu'
+const CAROL = { login: 'carol', name: 'Carol Example', email: null, role: 'client' as const }
 type Change = (json: unknown) => unknown
 /** A change to the mock's answer, or a failure instead of it. */
 let changes: Partial<Record<Name, Change>> = {}
@@ -38,7 +43,12 @@ const server = setupServer(
     const failure = failures[name]
     if (failure) return failure()
     const fund = createPortfolio(() => Date.now())
-    const answer = name === 'portfolio' ? fund.portfolio(args) : fund.activity(args)
+    // Home also reads what trades for the client (`session strategies`) and the menu's names, as carol.
+    const answer =
+      name === 'portfolio' ? fund.portfolio(args)
+      : name === 'session' ? await createBot({ ticking: false, seed: 3 }).run(args)
+      : name === 'menu' ? createMenu({ clientOf: createClients(createPeople().roleOf).clientOf }).run(args, CAROL)
+      : fund.activity(args)
     const change = changes[name]
     return result({ ...answer, json: change ? change(answer.json) : answer.json })
   }),
@@ -87,10 +97,39 @@ describe('Home', () => {
     expect(screen.queryByText('Deposits not confirmed yet')).not.toBeInTheDocument()
     // The latest three of what happened, in plain words.
     const latest = screen.getByRole('region', { name: 'Latest' })
-    expect(await within(latest).findByText('Closed XAUUSD buy 2 at a gain of 84.10')).toBeInTheDocument()
+    expect(await within(latest).findByText('Closed a Gold trade')).toBeInTheDocument()
     expect(within(latest).getAllByRole('listitem')).toHaveLength(3)
     expect(within(latest).getAllByRole('time').map((time) => time.textContent)).toEqual(['Today', 'Yesterday', expect.stringMatching(/^\w{3} \d{1,2} \w{3}$/)])
     expect(within(latest).getByRole('link', { name: 'All activity' })).toHaveAttribute('href', '/activity')
+    // Whether anything is wrong, and what trades for them, in their words.
+    expect(await screen.findByText('Everything is running')).toBeInTheDocument()
+    const trading = screen.getByRole('region', { name: 'Trading for you' })
+    expect(within(trading).getByText('A strategy run by the fund')).toBeInTheDocument()
+    expect(within(trading).getByText(/· Gold, since /)).toBeInTheDocument()
+  })
+
+  it('says which strategy could not trade', async () => {
+    changes.session = (json) => (json as Record<string, unknown>[]).map((s) => ({ ...s, lastError: 'The broker refused the order.', lastErrorAt: new Date().toISOString() }))
+    show(<Home />)
+
+    expect(await screen.findByText('A strategy could not trade just now')).toBeInTheDocument()
+    expect(screen.getByText(/^A strategy run by the fund\. The fund sees this too/)).toBeInTheDocument()
+    expect(screen.queryByText('Everything is running')).not.toBeInTheDocument()
+  })
+
+  it('says when the value is late', async () => {
+    changes.portfolio = withAccount({ valuedAt: new Date(Date.now() - 5 * 3600_000).toISOString() })
+    show(<Home />)
+
+    expect(await screen.findByText('Your value is late')).toBeInTheDocument()
+  })
+
+  it('says a sign-in that ended in the client’s words, not the API key’s', async () => {
+    failures.portfolio = () => new HttpResponse(null, { status: 401 })
+    show(<Home />)
+
+    expect(await screen.findByText('Your sign-in has ended')).toBeInTheDocument()
+    expect(screen.queryByText(/API key/)).not.toBeInTheDocument()
   })
 
   it('warns that a recent deposit may still count as a gain until the broker is asked', async () => {
@@ -155,14 +194,14 @@ describe('Activity', () => {
     show(<Activity />)
 
     const today = await screen.findByRole('region', { name: 'Today' })
-    expect(within(today).getByText('Closed XAUUSD buy 2 at a gain of 84.10')).toBeInTheDocument()
+    expect(within(today).getByText('Closed a Gold trade')).toBeInTheDocument()
     // The currency comes with the portfolio, which may answer after the activity.
     expect(await within(today).findByText(/\+84\.10 EUR/)).toBeInTheDocument()
     const yesterday = screen.getByRole('region', { name: 'Yesterday' })
     expect(within(yesterday).getByText(/-12\.40 EUR/)).toBeInTheDocument()
     expect(screen.getByText('Deposit: Second transfer')).toBeInTheDocument()
     expect(screen.getByText('+2,000.00 EUR')).toBeInTheDocument()
-    expect(screen.getByText('Strategy started: drcs, Gold')).toBeInTheDocument()
+    expect(screen.getByText('Strategy started: Gold')).toBeInTheDocument()
   })
 
   it('says when nothing has happened yet', async () => {

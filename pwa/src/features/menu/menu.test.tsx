@@ -91,7 +91,9 @@ describe('A client’s Strategies', () => {
     show(<ClientStrategies />)
 
     const running = await screen.findByRole('region', { name: 'Trading for you' })
-    expect(await within(running).findByText('drcs')).toBeInTheDocument()
+    // Started by the fund, not from the menu: no bot name ("drcs") for a client, and what it trades in plain words.
+    expect(await within(running).findByText('A strategy run by the fund')).toBeInTheDocument()
+    expect(within(running).getByText(/^Gold · since /)).toBeInTheDocument()
     const offers = screen.getByRole('region', { name: 'Add a strategy' })
     expect(await within(offers).findByText('Gold trend, steady')).toBeInTheDocument()
     expect(within(offers).getByText('Euro range, careful')).toBeInTheDocument()
@@ -120,16 +122,17 @@ describe('A client’s Strategies', () => {
 
     expect(await screen.findByText(/^Gold trend, steady is trading for you with 2,000\.00 EUR\./)).toBeInTheDocument()
     expect(sentStart()).toEqual(['trading', 'start', '--setup', '1', '--budget', '2000'])
-    expect(await screen.findByText('Gold trend steady')).toBeInTheDocument()
+    // The new session, under the menu's name.
+    expect(await within(screen.getByRole('region', { name: 'Trading for you' })).findByText('Gold trend, steady')).toBeInTheDocument()
   })
 
   it('stops a strategy after asking in place, saying what stays open', async () => {
     const user = userEvent.setup()
     show(<ClientStrategies />)
 
-    await user.click(await screen.findByRole('button', { name: 'Stop drcs' }))
-    const ask = screen.getByRole('group', { name: 'Stop drcs?' })
-    expect(ask).toHaveTextContent(/It opens nothing new\./)
+    await user.click(await screen.findByRole('button', { name: 'Stop the strategy run by the fund' }))
+    const ask = screen.getByRole('group', { name: 'Stop the strategy run by the fund?' })
+    expect(ask).toHaveTextContent(/It won’t open new trades\./)
     await user.click(within(ask).getByRole('button', { name: 'Stop it' }))
 
     await waitFor(() => expect(sent).toContainEqual(['trading', 'stop', '--name', 'drcs']))
@@ -140,10 +143,10 @@ describe('A client’s Strategies', () => {
     const user = userEvent.setup()
     show(<ClientStrategies />)
 
-    await user.click(await screen.findByRole('button', { name: 'Stop drcs' }))
+    await user.click(await screen.findByRole('button', { name: 'Stop the strategy run by the fund' }))
     await user.click(screen.getByRole('button', { name: 'Keep it running' }))
 
-    expect(screen.queryByRole('group', { name: 'Stop drcs?' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Stop the strategy run by the fund?' })).not.toBeInTheDocument()
     expect(sent.some((args) => args[1] === 'stop')).toBe(false)
   })
 })

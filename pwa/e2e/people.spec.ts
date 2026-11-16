@@ -75,7 +75,12 @@ test('a client starts at Home, sees their money and what happened, and stays in 
   await expect(page.getByText('Your portfolio')).toBeVisible()
   await expect(page.getByText(/^[\d,]+\.\d\d EUR$/)).toBeVisible()
   await expect(page.getByText(/a deposit of 2,000\.00 EUR on/)).toBeVisible()
-  await expect(page.getByText('Closed XAUUSD buy 2 at a gain of 84.10')).toBeVisible()
+  await expect(page.getByText('Closed a Gold trade')).toBeVisible()
+  // Whether anything is wrong, what trades for them, and the fund's name, in their words.
+  await expect(page.getByText('Everything is running')).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Trading for you' }).getByText('A strategy run by the fund')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Beyond Hedge Fund, Home' })).toBeVisible()
+  await expect(page).toHaveTitle('Home · Beyond Hedge Fund')
 
   await shown(page.getByRole('link', { name: 'Activity', exact: true })).click()
   await expect(page).toHaveURL(/#\/activity$/)

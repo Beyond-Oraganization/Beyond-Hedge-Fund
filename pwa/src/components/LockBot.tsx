@@ -19,6 +19,8 @@ export function LockBot({ open, onClose }: { open: boolean; onClose: () => void 
   const { register, handleSubmit, reset, formState } = useForm({ mode: 'onTouched', defaultValues: { passphrase: '', confirm: '' } })
   if (!connection) return null
   const remembered = connection.storage === 'device'
+  // A person's sign-in locks the app and their account; the API key locks the bot.
+  const what = connection.person ? 'the app' : 'the bot'
 
   const lock = handleSubmit(async ({ passphrase }) => {
     setFailure(null)
@@ -33,11 +35,11 @@ export function LockBot({ open, onClose }: { open: boolean; onClose: () => void 
   })
 
   return (
-    <Sheet open={open} onClose={onClose} title="Lock the bot">
+    <Sheet open={open} onClose={onClose} title={`Lock ${what}`}>
       <form className="form" noValidate onSubmit={lock}>
         <p className="p">
           {remembered
-            ? `${connection.name} opens without a passphrase on this device. Choose one to lock it with: until it is typed, nobody can use the bot from this device. Once unlocked, it is remembered again.`
+            ? `${connection.name} opens without a passphrase on this device. Choose one to lock it with: until it is typed, nobody can use ${what} from this device. Once unlocked, it is remembered again.`
             : `${connection.name} forgets its key until the passphrase is typed again.`}
         </p>
         {remembered ? (
@@ -63,7 +65,7 @@ export function LockBot({ open, onClose }: { open: boolean; onClose: () => void 
         {failure ? <p className="field-error">{failure}</p> : null}
         <div className="btn-row">
           <Button type="submit" icon="lock" busy={formState.isSubmitting}>
-            Lock the bot
+            Lock {what}
           </Button>
           <Button variant="ghost" onClick={onClose}>
             Cancel
