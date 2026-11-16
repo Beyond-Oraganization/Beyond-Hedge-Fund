@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useBrand } from '../app/brand.ts'
 
 const subscribeVisibility = (listener: () => void) => {
   document.addEventListener('visibilitychange', listener)
@@ -58,7 +59,8 @@ export function useWakeLock(active: boolean) {
 
 /** Sets the document title, which an installed app shows in its window and task switcher. */
 export function useTitle(title: string) {
+  const brand = useBrand()
   useEffect(() => {
-    document.title = title ? `${title} · Beyond Bot` : 'Beyond Bot'
-  }, [title])
+    document.title = title ? `${title} · ${brand}` : brand
+  }, [title, brand])
 }

@@ -7,7 +7,8 @@ import { Banner, Button } from '../../shared/ui/index.ts'
 
 /**
  * A read on a client's screen, in a client's words: a skeleton while it loads, what went wrong and a way to try again,
- * and an older answer kept on screen when a refresh fails. No command lines, no "the bot said".
+ * and an older answer kept on screen when a refresh fails. No command lines, no "the bot said", no API key: an ended
+ * sign-in says so, and the header's band signs in again.
  */
 export function ClientRead<T>({ query, what, children }: { query: UseQueryResult<CommandData<T>, CommandFailure>; what: string; children: (value: T) => ReactNode }) {
   const retry = (
@@ -15,8 +16,16 @@ export function ClientRead<T>({ query, what, children }: { query: UseQueryResult
       Try again
     </Button>
   )
+  // A sign-in that ended: the band at the top says so and signs in again; here only what it means for this read.
+  const ended = query.error?.kind === 'unauthorized'
   if (!query.data) {
     if (!query.error) return <Skeleton lines={4} />
+    if (ended)
+      return (
+        <Banner tone="warn" title="Your sign-in has ended">
+          Sign in again to see your {what}.
+        </Banner>
+      )
     // A server from before the fund's portfolios: "Unknown command 'portfolio'", or to a person, not a command they can run.
     if (/unknown command|is not a command you can run/i.test(query.error.message))
       return (
@@ -34,8 +43,8 @@ export function ClientRead<T>({ query, what, children }: { query: UseQueryResult
   return (
     <>
       {query.error ? (
-        <Banner tone="warn" title="Showing what this device saw last" action={retry}>
-          {query.error.message}
+        <Banner tone="warn" title="Showing what this device saw last" action={ended ? undefined : retry}>
+          {ended ? 'Your sign-in has ended. Sign in again to see the latest.' : query.error.message}
         </Banner>
       ) : null}
       {parsed.ok ? (
