@@ -60,12 +60,12 @@ Read each task out loud, then stay quiet. If they ask you something, ask back: "
 | 1 | "Sign in. Your login is carol and your password is demo-password. Your code app would give you six digits: type any six." | Home shows | Hesitation over the server address or the code step |
 | 2 | "How much is your money worth right now?" *Time it from when you finish reading.* | They say the figure | Over 10 seconds? Do they read "Your portfolio"? |
 | 3 | "How did it do this month?" | They say the month's return | Do they read the November jump on the chart as a gain? It's the 2,000 deposit. Do they notice "Deposits … not counted"? |
-| 4 | "Is anything wrong with your account?" | They give an answer, either way | Where do they look? Home has no "everything is running" line yet (pilot finding 1) |
-| 5 | "What is trading for you at the moment?" | They name it, or say they can't tell | Does "drcs" mean anything to them? (pilot finding 2) |
+| 4 | "Is anything wrong with your account?" | They give an answer, either way | Do they find "Everything is running" on Home, and trust it? |
+| 5 | "What is trading for you at the moment?" | They name it, or say they can't tell | Do they read "Trading for you" on Home, or go to Strategies? Does "A strategy run by the fund" make sense to them? |
 | 6 | "Add the careful strategy and give it 5,000 euros." Then: "Now try 3,000." | 5,000 refused and understood; 3,000 started or checked | Do they understand "It would not start … your largest here"? Why does it say the balance is 9,990.64 when Home says 10,472.72? (pilot finding 3) |
 | 7 | "You'd like the gold strategy to stop trading for you. Do it." Then ask: "What do you think happens to a trade it has open?" | Stopped | Their answer to the question settles the open plan question |
 | 8 | "How did your money do last month? Find the statement, and save it as a PDF." (Name the month; the mock keeps the last 70 days.) | Last month's statement is open and the print dialog shows | Do they look under Account? Do they read the summary table top to bottom? |
-| 9 | "What happened on your account yesterday?" | They read Activity | "Closed EURUSD sell 0.5": do they understand it? (pilot finding 2) |
+| 9 | "What happened on your account yesterday?" | They read Activity | "Closed a Euro / US dollar trade": do they understand it, and the red amount beside it? |
 
 ## Afterwards (5 minutes)
 
@@ -130,4 +130,6 @@ I did tasks 1–9 on the mock at phone width before anyone else does. This is no
 6. **A running strategy shows no result.** The plan says name, since when, and its result; it shows "Since 16 Nov · 1 trade". *Fix:* add the session's result so far.
 7. *(Minor)* The code step says "for Beyond Hedge Fund" twice, in the paragraph and in the hint under the field.
 
-Fixing 1, 2, 4 and 5 before the test means the test finds new problems rather than these. They are small changes in the app. For 1, a client can already read their sessions, each with its last error, through `session strategies`. The fund's alerts (`fund overview`) are staff's, so "needs attention" for a client would start from their own sessions' errors.
+**Fixed before the test:** 1, 2, 4 and 5 (app PR "Plain words for clients", bot #27 for naming menu starts in Activity). Still open: 3, 6 and 7.
+
+Fixing them first means the test finds new problems rather than these. They are small changes in the app. For 1, a client can already read their sessions, each with its last error, through `session strategies`. The fund's alerts (`fund overview`) are staff's, so "needs attention" for a client would start from their own sessions' errors.

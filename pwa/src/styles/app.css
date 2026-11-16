@@ -13,7 +13,7 @@
 .hdr-tools{display:flex;align-items:center;gap:8px}
 .hdr-tools .label-text{display:none}
 @container (min-width:1380px){.hdr-tools .label-text{display:inline}}
-@container (max-width:420px){.brand span{font-size:16px}.brand svg{flex-basis:34px;width:34px;height:34px}.hdr-tools{gap:6px}.hdr-tools .icon-btn{min-width:44px;height:44px;padding:0 9px}}
+@container (max-width:420px){.brand span{font-size:16px}.brand-long span{max-width:8.5em;white-space:normal;font-size:14px;line-height:1.05}.brand svg{flex-basis:34px;width:34px;height:34px}.hdr-tools{gap:6px}.hdr-tools .icon-btn{min-width:44px;height:44px;padding:0 9px}}
 .conn{display:inline-flex;align-items:center;gap:8px;max-width:220px;height:48px;padding:0 12px;border:3px solid var(--fg);font:700 12px/1 var(--f-t);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;background:transparent}
 .conn:hover{background:color-mix(in srgb,var(--fg) 12%,transparent);opacity:1}
 .conn .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

@@ -7,20 +7,27 @@ import { fmtMoney } from '../../format.ts'
 import { useAccounts } from '../../hooks/accounts.ts'
 import { Badge, Banner, Button, Card, Change, EmptyState, PageHeader } from '../../shared/ui/index.ts'
 import { ClientRead } from '../portfolio/ClientRead.tsx'
+import { inSentence, marketName, strategyName } from '../portfolio/words.ts'
 import { readBudget, readCheck, type StartCheck } from '../trading/check.ts'
 import { riskWord, sizingWords, useMenu, useMySessions, type MenuSetup } from './menu.ts'
 
 /** "7 Nov" (UTC). */
 const day = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
 
-/** One strategy trading for the client: since when, what it trades with and has made, and Stop, which asks in place. */
-function Running({ session }: { session: TradingSessionState }) {
+/**
+ * One strategy trading for the client, under the menu's name: what it trades, since when, what it trades with and has made,
+ * and Stop, which asks in place. Stop names the session as the bot does.
+ */
+function Running({ session, menu }: { session: TradingSessionState; menu: MenuSetup[] }) {
   const run = useAction()
   const [asking, setAsking] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const name = sessionName(session)
+  const shown = strategyName(session, menu)
+  const spoken = inSentence(shown)
   const budget = session.budget
+  const open = budget?.open ?? 0
 
   async function stop() {
     setBusy(true)
@@ -36,11 +43,11 @@ function Running({ session }: { session: TradingSessionState }) {
   return (
     <li className="k-strategy">
       <div className="k-row k-strategy-head">
-        <strong className="k-grow-text">{name}</strong>
-        {budget?.open ? <Badge tone="neutral">{budget.open} open</Badge> : null}
+        <strong className="k-grow-text">{shown}</strong>
+        {open ? <Badge tone="neutral">{open === 1 ? '1 trade open' : `${open} trades open`}</Badge> : null}
       </div>
       <p className="k-hint">
-        Since {day(session.startedAt)}
+        {marketName(session.market.symbol)} · since {day(session.startedAt)}
         {budget ? ` · budget ${fmtMoney(budget.amount, budget.currency)}` : ''} · {session.trades === 1 ? '1 trade' : `${session.trades} trades`}
       </p>
       {budget?.results != null ? (
@@ -50,9 +57,10 @@ function Running({ session }: { session: TradingSessionState }) {
       ) : null}
       {error ? <Banner tone="error" title={error} /> : null}
       {asking ? (
-        <div className="k-confirm" role="group" aria-label={`Stop ${name}?`}>
+        <div className="k-confirm" role="group" aria-label={`Stop ${spoken}?`}>
           <p>
-            <strong>Stop {name}?</strong> It opens nothing new. {budget?.open ? `Its ${budget.open} open position${budget.open === 1 ? '' : 's'} stay open until the fund closes them.` : 'Nothing of it is open now.'}
+            <strong>Stop {spoken}?</strong> It won’t open new trades.{' '}
+            {open ? `${open === 1 ? 'Its open trade stays' : `Its ${open} open trades stay`} open until the fund closes ${open === 1 ? 'it' : 'them'}.` : 'It has no trade open now.'}
           </p>
           <div className="k-row">
             <Button variant="danger" busy={busy} onClick={() => void stop()}>
@@ -65,7 +73,7 @@ function Running({ session }: { session: TradingSessionState }) {
         </div>
       ) : (
         <div className="k-row">
-          <Button variant="secondary" icon="stop" onClick={() => setAsking(true)} aria-label={`Stop ${name}`}>
+          <Button variant="secondary" icon="stop" onClick={() => setAsking(true)} aria-label={`Stop ${spoken}`}>
             Stop
           </Button>
         </div>
@@ -224,7 +232,7 @@ export default function ClientStrategies() {
               running.length ? (
                 <ul className="k-strategies">
                   {running.map((session) => (
-                    <Running key={sessionName(session)} session={session} />
+                    <Running key={sessionName(session)} session={session} menu={menu.data?.parsed.ok ? menu.data.parsed.value : []} />
                   ))}
                 </ul>
               ) : (
