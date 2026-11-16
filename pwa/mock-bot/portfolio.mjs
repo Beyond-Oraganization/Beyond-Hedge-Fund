@@ -45,6 +45,56 @@ function history(now) {
   }
 }
 
+const MONTH = /^(\d{4})-(\d{2})$/
+const monthOf = (ms) => new Date(ms).toISOString().slice(0, 7)
+
+/**
+ * `statement --json` (Fund/Statements.cs) for the client holding "demo": the month's values from the same history, the
+ * deposit when it falls in the month, and a closed position every fifth day, alternately Gold's gain and a loss by hand.
+ */
+function statementOf(client, month, t) {
+  const { days, deposit } = history(t)
+  const [, year, number] = MONTH.exec(month)
+  const from = Date.UTC(Number(year), Number(number) - 1, 1)
+  const end = Date.UTC(Number(year), Number(number), 1)
+  const complete = end <= t
+  const inMonth = days.filter((day) => Date.parse(day.date) >= from && Date.parse(day.date) < end && Date.parse(day.date) <= t)
+  const before = days.filter((day) => Date.parse(day.date) < from).at(-1)
+  const opening = before ?? inMonth[0] ?? null
+  const closing = inMonth.at(-1) ?? null
+  const flows = Date.parse(deposit.at) >= from && Date.parse(deposit.at) < end ? [deposit] : []
+  const deposits = flows.reduce((sum, flow) => sum + flow.amount, 0)
+  const moved = opening && closing && Date.parse(deposit.at) > Date.parse(opening.date) && Date.parse(deposit.at) <= Date.parse(closing.date) + DAY ? deposit.amount : 0
+  const trades = inMonth.filter((_, index) => index % 5 === 4).map((day, index) => ({
+    openedAt: `${day.date}T08:00:00Z`, closedAt: `${day.date}T15:00:00Z`, symbol: index % 2 ? 'EURUSD' : 'XAUUSD', side: index % 2 ? 'sell' : 'buy',
+    quantity: index % 2 ? 0.5 : 2, entryPrice: index % 2 ? 1.0842 : 2391.4, result: index % 2 ? -12.4 : round(84.1 + index * 3.5), strategy: index % 2 ? null : 'Gold',
+  }))
+  const byStrategy = [...new Set(trades.map((trade) => trade.strategy))].map((name) => {
+    const own = trades.filter((trade) => trade.strategy === name)
+    return { name, trades: own.length, wins: own.filter((trade) => trade.result > 0).length, losses: own.filter((trade) => trade.result < 0).length, result: round(own.reduce((sum, trade) => sum + trade.result, 0)) }
+  })
+  const started = Math.floor(t / DAY) * DAY - 9 * DAY
+  const realized = round(trades.reduce((sum, trade) => sum + trade.result, 0))
+  const account = {
+    login: ACCOUNT, currency: CURRENCY,
+    opening: opening?.value ?? null, openingAt: opening ? `${opening.date}T23:00:00Z` : null,
+    closing: closing?.value ?? null, closingAt: closing ? `${closing.date}T23:00:00Z` : null,
+    deposits, withdrawals: 0,
+    change: opening && closing ? round(closing.value - opening.value - moved) : null,
+    return: opening && closing && closing !== opening ? round(closing.growth / opening.growth - 1, 6) : null,
+    cashFlowsConfirmed: true,
+    trades: trades.length, wins: trades.filter((trade) => trade.result > 0).length, losses: trades.filter((trade) => trade.result < 0).length, realized,
+    strategies: byStrategy, tradeList: trades, cashFlows: flows,
+    events: started >= from && started < end ? [{ at: iso(started + 9 * 3600_000), text: 'Strategy started: drcs, Gold' }] : [],
+    days: inMonth.map((day) => ({ date: day.date, value: day.value, cashFlow: day.cashFlow, return: opening ? round(day.growth / opening.growth - 1, 6) : null })),
+  }
+  const total = { currency: CURRENCY, accounts: 1, opening: account.opening, closing: account.closing, deposits, withdrawals: 0, change: account.change, realized }
+  return {
+    clientId: client.id, client: client.name, month, from: iso(from), to: iso(complete ? end : t), isComplete: complete, generatedAt: iso(t),
+    accounts: client.accounts.includes(ACCOUNT) ? [account] : [], totals: client.accounts.includes(ACCOUNT) ? [total] : [],
+  }
+}
+
 export function createPortfolio(now) {
   const reachable = (args) => {
     const asked = option(args, '--account')
@@ -64,6 +114,25 @@ export function createPortfolio(now) {
         cashFlows: [deposit], cashFlowsConfirmedUntil: iso(hour),
       }
       return answer({ accounts: [account] }, `${ACCOUNT}: ${last.value} ${CURRENCY}`, args.includes('--json'))
+    },
+
+    /** `client`: the client the statement is for ({ id, name, accounts }), already checked against the caller. */
+    statement(args, client) {
+      const t = now()
+      const asJson = args.includes('--json')
+      const first = history(t).days[0].date
+      if (args.includes('--list')) {
+        const months = []
+        if (client.accounts.includes(ACCOUNT))
+          for (let at = Date.UTC(new Date(t).getUTCFullYear(), new Date(t).getUTCMonth(), 1); monthOf(at) >= first.slice(0, 7); at = Date.UTC(new Date(at).getUTCFullYear(), new Date(at).getUTCMonth() - 1, 1)) months.push(monthOf(at))
+        return answer({ clientId: client.id, client: client.name, months }, months.length ? `${client.name}: ${months.join(', ')}` : `No statement for ${client.name} yet.`, asJson)
+      }
+      const month = option(args, '--month')
+      if (!month) return failed('Give the month: --month 2026-10 (or --list for the months there are).')
+      if (!MONTH.test(month)) return failed(`'${month}' is not a month: write it 2026-10.`)
+      if (Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)) - 1, 1) > t) return failed(`${month} has not begun: a statement covers a month that has.`)
+      const view = statementOf(client, month, t)
+      return answer(view, `${client.name}, statement for ${month}`, asJson)
     },
 
     activity(args) {

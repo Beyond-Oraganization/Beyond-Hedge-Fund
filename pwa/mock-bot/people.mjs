@@ -24,7 +24,7 @@ const PEOPLE = () => [
 const BRANCHES = new Set(['market', 'candles', 'indicators', 'trading', 'orders', 'people', 'fund', 'clients', 'cashflows', 'menu'])
 const RANK = { client: 0, staff: 1, owner: 2 }
 const RULES = {
-  help: 'client', me: 'client', signin: 'client', signout: 'client', portfolio: 'client', activity: 'client',
+  help: 'client', me: 'client', signin: 'client', signout: 'client', portfolio: 'client', activity: 'client', statement: 'client',
   'menu list': 'client', 'session strategies': 'client', 'trading start': 'client', 'trading check': 'client', 'trading stop': 'client',
   'menu add': 'owner', 'menu change': 'owner', 'menu withdraw': 'owner', 'clients limits': 'staff',
   accounts: 'client', use: 'client', balance: 'client', positions: 'client', 'trading status': 'client', 'orders list': 'client',

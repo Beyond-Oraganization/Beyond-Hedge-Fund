@@ -6,6 +6,7 @@ import { Section } from '../components/ui.tsx'
 import { Banner, Button, Card, PageHeader } from '../shared/ui/index.ts'
 import { useConnections } from '../state/connections.ts'
 import { usePortfolio } from '../features/portfolio/portfolio.ts'
+import { StatementsCard } from '../features/statements/StatementsCard.tsx'
 
 /** A client's accounts at the broker, and where their money goes in and out. */
 function AtTheBroker() {
@@ -79,6 +80,7 @@ export default function Me() {
       <div className="k-demo" style={{ maxWidth: 720 }}>
         <PageHeader title={person.role === 'client' ? 'Your account' : 'Your sign-in'} meta={ROLE[person.role]} />
         {error ? <Banner tone="error" title={error} /> : null}
+        {person.role === 'client' ? <StatementsCard base="/me/statements" /> : null}
         {person.role === 'client' ? <AtTheBroker /> : null}
         <Card title="Signed in as">
           <dl className="k-facts">
