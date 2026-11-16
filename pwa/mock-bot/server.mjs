@@ -214,6 +214,20 @@ export function startServer({ port = 8443, key = DEFAULT_KEY, origins = '*', con
         const fund = createPortfolio(() => bot.now())
         return reply(args[0] === 'portfolio' ? fund.portfolio(args) : fund.activity(args))
       }
+      // A client's statement: a client gets their own (Fund/Statements.cs), staff and the owner name the client.
+      if (args[0] === 'statement') {
+        const at = args.indexOf('--client')
+        const asked = at >= 0 ? Number(args[at + 1]) : null
+        const own = person?.role === 'client' ? clients.clientOf(person.login) : null
+        const failed = (message) => reply({ exitCode: 1, output: message, blocks: [], error: { message, hint: null }, json: null })
+        if (person?.role === 'client' && own == null) return failed('You are not linked to a client yet: the fund links you when your account is ready.')
+        if (own != null && asked != null && asked !== own) return failed(`Client ${asked} is not yours.`)
+        const id = own ?? asked
+        if (id == null) return failed("Give the client: --client <ID> ('clients list' shows them).")
+        const client = clients.get(id)
+        if (!client) return failed(`No client ${id}. 'clients list' shows them.`)
+        return reply(createPortfolio(() => bot.now()).statement(args, client))
+      }
 
       const token = caller.kind === 'person' ? null : String(req.headers['x-beyondbot-connection'] ?? '').trim() || null
       const picked = String(req.headers['x-beyondbot-account'] ?? '').trim() || null
