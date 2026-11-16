@@ -100,6 +100,8 @@ export const SessionSchema = z.object({
       profitCurrency: str,
       inAccountCurrency: z.boolean(),
       isConverted: z.boolean(),
+      // Where the price comes from: a live quote, or the last stored close (a closed or quiet market). A bot from before sends none.
+      priceSource: z.enum(['quote', 'lastClose']).nullish(),
       isPending: z.boolean(),
       openedAt: str,
     }),
