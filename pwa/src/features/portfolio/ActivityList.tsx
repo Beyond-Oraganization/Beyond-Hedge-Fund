@@ -1,6 +1,7 @@
 import { fmtSignedMoney } from '../../format.ts'
 import { Change } from '../../shared/ui/index.ts'
 import type { ActivityItem } from './portfolio.ts'
+import { plainActivity } from './words.ts'
 
 /** "14:02" (UTC). */
 const clock = (at: string) => new Date(at).toISOString().slice(11, 16)
@@ -15,7 +16,7 @@ export function dayName(at: string, now = Date.now()): string {
   return new Date(`${day}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
 }
 
-/** The items of one day, or a few of the latest: time, what happened in words, and the money it made or moved. */
+/** The items of one day, or a few of the latest: time, what happened in a client's words, and the money it made or moved. */
 export function ActivityList({
   items,
   currencyOf = () => null,
@@ -37,7 +38,7 @@ export function ActivityList({
             {stamp === 'day' ? dayName(item.at) : clock(item.at)}
           </time>
           <span className="k-feed-text">
-            {item.text}
+            {plainActivity(item.text)}
             {showAccount ? <span className="k-feed-account"> · {item.account}</span> : null}
           </span>
           {item.amount == null ? null : item.kind === 'close' ? (

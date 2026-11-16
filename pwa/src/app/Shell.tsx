@@ -5,6 +5,7 @@ import { useRegisterSW } from 'virtual:pwa-register/react'
 import { restoreCache, useBot, useBotHealth, useBusy } from '../api/bot.ts'
 import { runCommand } from '../api/client.ts'
 import { checkForUpdates } from './updates.ts'
+import { brandOf, FUND, useBrand } from './brand.ts'
 import { describedBy, Field } from '../components/Field.tsx'
 import { BotMark, Icon } from '../components/Icon.tsx'
 import { Sheet } from '../components/Sheet.tsx'
@@ -63,18 +64,19 @@ function Header() {
   const { connection, ready } = useBot()
   const [locking, setLocking] = useState(false)
   const client = connection?.person?.role === 'client'
+  const brand = brandOf(connection)
   return (
     <header className="hdr">
       <div className="hdr-in">
-        <Link to={client ? '/home' : '/'} className="brand" aria-label={client ? 'Beyond Bot, Home' : 'Beyond Bot, Account'}>
+        <Link to={client ? '/home' : '/'} className={cx('brand', brand === FUND && 'brand-long')} aria-label={`${brand}, ${client ? 'Home' : 'Account'}`}>
           <BotMark size={40} />
-          <span>BEYOND BOT</span>
+          <span>{brand.toUpperCase()}</span>
         </Link>
         <div className="hdr-tools">
           <ConnectionChip />
           {offerable ? <IconButton icon="install" label="Install" showLabel onClick={() => ui.set({ installOpen: true })} /> : null}
           <IconButton icon="sun" label="Light theme" showLabel aria-pressed={theme === 'light'} onClick={toggle} />
-          {connection && ready ? <IconButton icon="lock" label="Lock the bot" onClick={() => setLocking(true)} /> : null}
+          {connection && ready ? <IconButton icon="lock" label={connection.person ? 'Lock the app' : 'Lock the bot'} onClick={() => setLocking(true)} /> : null}
         </div>
       </div>
       <LockBot open={locking} onClose={() => setLocking(false)} />
@@ -167,10 +169,11 @@ function UpdatePrompt() {
     },
   })
   const busy = useBusy()
+  const brand = useBrand()
   if (!needRefresh) return null
   return (
     <div className="banner calm" role="status">
-      A new version of Beyond Bot is ready.
+      A new version of {brand} is ready.
       <button type="button" className="link" disabled={Boolean(busy && busy.priority === 'interactive')} onClick={() => void updateServiceWorker(true)}>
         Reload now
       </button>
