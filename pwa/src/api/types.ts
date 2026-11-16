@@ -89,6 +89,11 @@ export type PositionSnapshot = {
   isConverted: boolean
   isPending: boolean
   openedAt: Iso
+  /**
+   * Where the price comes from (bot 2.5): "quote" (live), "lastClose" (the newest stored candle's close: the market is closed or
+   * has not ticked yet), or null (none). A bot from before sends none.
+   */
+  priceSource?: 'quote' | 'lastClose' | null
 }
 
 export type SessionStats = {
