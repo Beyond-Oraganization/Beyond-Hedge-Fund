@@ -169,10 +169,11 @@ test('a client starts a strategy from the menu within their limits, and stops it
   await expect(page.getByText(/^Gold trend, steady is trading for you with 2,000\.00 EUR\./)).toBeVisible()
 
   const running = page.getByRole('region', { name: 'Trading for you' })
-  await expect(running.getByText('Gold trend steady')).toBeVisible()
-  await running.getByRole('button', { name: 'Stop Gold trend steady' }).click()
-  await running.getByRole('group', { name: 'Stop Gold trend steady?' }).getByRole('button', { name: 'Stop it' }).click()
-  await expect(running.getByText('Gold trend steady')).toHaveCount(0)
+  // Started from the menu, it goes by the menu's name (features/portfolio/words.ts), not the session's.
+  await expect(running.getByText('Gold trend, steady')).toBeVisible()
+  await running.getByRole('button', { name: 'Stop Gold trend, steady' }).click()
+  await running.getByRole('group', { name: 'Stop Gold trend, steady?' }).getByRole('button', { name: 'Stop it' }).click()
+  await expect(running.getByText('Gold trend, steady')).toHaveCount(0)
 })
 
 test('the API key stays for the owner, under Advanced', async ({ page }) => {

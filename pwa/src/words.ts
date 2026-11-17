@@ -20,7 +20,7 @@ export function signalWords(signal: Signal | null | undefined): string {
 }
 
 /**
- * The price levels a decision compared the candle with ("lower 1 2641.80"), as the bot's tick line shows them. A bot
+ * The price levels a decision compared the candle with ("below 1 2641.80"), as the bot's tick line shows them. A bot
  * from before rules flagged none and called its one level "band".
  */
 export const levelsOf = (values: { name: string; value: number; isLevel?: boolean }[] | null | undefined) =>

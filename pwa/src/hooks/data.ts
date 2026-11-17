@@ -19,4 +19,5 @@ export const useStrategies = () =>
   })
 
 /** Health check (`status`), which exits 1 with a full answer when the database is down. */
-export const useStatus = () => useCommand('status', cmd.status(), parseStatus, { accept: [1], persist: true })
+/** `status` is staff's and the owner's: a client's screen passes `enabled: false` rather than be refused (and audited). */
+export const useStatus = ({ enabled = true }: { enabled?: boolean } = {}) => useCommand('status', cmd.status(), parseStatus, { accept: [1], persist: true, enabled })

@@ -24,6 +24,7 @@ import { useTheme } from '../theme.ts'
 import { useSnapshotAlerts } from './alerts.ts'
 import { itemAt, sectionsFor, type NavSection, type Role } from './nav.ts'
 import { BottomNav, SectionTabs, SideNav } from './Navigation.tsx'
+import { StrategyPackLoader } from '../engine/usePack.ts'
 import { CommandPalette } from './Palette.tsx'
 
 function ConnectionChip() {
@@ -308,7 +309,7 @@ function Runtime() {
 // /design is the kit's page, in development builds only (App.tsx).
 const OPEN_WITHOUT_BOT = ['/signin', '/connect', '/connections', '/install', '/settings', '/design']
 
-/** Brings a person's name and role up to date from the bot (an owner may have changed the role) when their sign-in opens. */
+/** Brings a person's name, role and trust up to date from the bot (an owner may have changed them) when their sign-in opens. */
 function usePersonCheck() {
   const { connection, key } = useBot()
   const update = useConnections((state) => state.update)
@@ -317,8 +318,10 @@ function usePersonCheck() {
     if (!id || !key || !connection?.person) return
     const known = connection.person
     void runCommand({ url: connection.url, key, person: true }, ['me', '--json']).then((outcome) => {
-      const me = outcome.kind === 'ok' ? (outcome.result.json as { login: string; name: string; role: Role } | null) : null
-      if (me && (me.role !== known.role || me.name !== known.name)) void update(id, { person: { ...known, name: me.name, role: me.role } })
+      const me = outcome.kind === 'ok' ? (outcome.result.json as { login: string; name: string; role: Role; trusted?: boolean } | null) : null
+      const trusted = me?.trusted === true
+      if (me && (me.role !== known.role || me.name !== known.name || trusted !== (known.trusted === true)))
+        void update(id, { person: { ...known, name: me.name, role: me.role, trusted } })
     })
     // Once per sign-in opened: the role is read again at the next start.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -333,7 +336,8 @@ export function Shell() {
   const ui = useUi()
   // A person's role is their sign-in's; whoever connects with the API key is the owner.
   const role: Role = connection?.person?.role ?? 'owner'
-  const sections = useMemo(() => sectionsFor(role, { person: Boolean(connection?.person) }), [role, connection?.person])
+  const trusted = connection?.person?.trusted === true
+  const sections = useMemo(() => sectionsFor(role, { person: Boolean(connection?.person), trusted }), [role, connection?.person, trusted])
   useAutoLock()
   useShortcuts(sections)
   usePersonCheck()
@@ -379,6 +383,7 @@ export function Shell() {
       <CommandPalette />
       <Toasts />
       {ready && role !== 'client' ? <Runtime /> : null}
+      <StrategyPackLoader />
     </div>
   )
 }

@@ -13,7 +13,7 @@ type SignInJson = {
   secret?: string
   link?: string
   token?: string
-  person?: { login: string; name: string; role: PersonRole; device: string | null }
+  person?: { login: string; name: string; role: PersonRole; device: string | null; trusted?: boolean }
 }
 
 /** The fund's server, as the build names it; otherwise the one this device signed in to last. */
@@ -77,7 +77,7 @@ function SignInForm({ givenLogin }: { givenLogin: string }) {
           return setStep({ kind: 'code', setup: null })
         case 'signedIn': {
           const person = answer.person!
-          await addPerson({ url: server.trim(), token: answer.token!, person: { login: person.login, name: person.name, role: person.role, device: person.device }, remember })
+          await addPerson({ url: server.trim(), token: answer.token!, person: { login: person.login, name: person.name, role: person.role, device: person.device, trusted: person.trusted === true }, remember })
           navigate(person.role === 'client' ? '/home' : '/overview', { replace: true })
         }
       }

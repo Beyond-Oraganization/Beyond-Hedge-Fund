@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { useShallow } from 'zustand/react/shallow'
 import { clearRuns } from '../backtest/saved.ts'
+import { forgetPack } from '../engine/pack.ts'
 import { db } from './db.ts'
 import { seal, unseal, type Sealed } from './vault.ts'
 
@@ -12,7 +13,8 @@ export type KeyStorage = 'passphrase' | 'device' | 'session'
 
 /** Who a person's sign-in is (the fund's people sign in with their own login; others connect with the API key). */
 export type PersonRole = 'owner' | 'staff' | 'client'
-export type SignedInPerson = { login: string; name: string; role: PersonRole; device?: string | null }
+/** `trusted`: staff and the owner always; a client the fund trusts with its strategies (`me --json`, bot 2.4.0), who then gets the strategy pack. */
+export type SignedInPerson = { login: string; name: string; role: PersonRole; device?: string | null; trusted?: boolean }
 
 export type Connection = {
   id: string
@@ -146,6 +148,7 @@ export const useConnections = create<ConnectionState>((set, get) => {
       await db.delPrefixed(`cache:${id}:`)
       await db.del(`ticks:${id}`)
       await db.del(`activity:${id}`)
+      await forgetPack(id)
       await clearRuns(id)
     },
 
