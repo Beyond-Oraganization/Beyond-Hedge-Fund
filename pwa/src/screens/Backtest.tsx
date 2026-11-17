@@ -8,6 +8,7 @@ import { curveByTime, endedAbove, isDeviceRun, keep, keepScenarios, kellyShare, 
 import { clearRuns, loadDetails, loadRuns, saveRun } from '../backtest/saved.ts'
 import { FailurePanel } from '../components/Answer.tsx'
 import { MonteCarloSection, ReportFigures } from '../components/backtest/Report.tsx'
+import { MarketBetaChart } from '../components/backtest/MarketBetaChart.tsx'
 import { TradeReturnsChart } from '../components/backtest/TradeReturnsChart.tsx'
 import { Chart } from '../components/Chart.tsx'
 import { DataTable } from '../components/DataTable.tsx'
@@ -323,8 +324,29 @@ export default function Backtest() {
                 <p className="p">{device ? 'No trade closed.' : 'Run it again to see each trade’s return.'}</p>
               )}
             </div>
+            <div className="stack-sm">
+              <h3 className="h3">Against the market</h3>
+              {device?.result.marketBeta && device.result.dayDots?.length ? (
+                <>
+                  <p className="hint">
+                    Each dot is a day: the market’s move across, the strategy’s up, its open positions valued at the day’s close. The slope of the line is beta, how much of the
+                    market’s move the strategy carried. Where it crosses the middle line is alpha, what it made on a day the market stood still.
+                  </p>
+                  <MarketBetaChart dots={device.result.dayDots} beta={device.result.marketBeta} />
+                </>
+              ) : (
+                <p className="p">
+                  {device?.result.marketBetaMissing
+                    ? `No beta or alpha: ${device.result.marketBetaMissing}.`
+                    : device?.result.dayDots
+                      ? 'No beta or alpha for this run.'
+                      : 'Run it again to see how it moved with the market.'}
+                </p>
+              )}
+            </div>
             <Callout label="What a backtest leaves out">
               <p>No fees, spread or margin. Positions still open at the end are not in the balance. The bot trades with the same decision code, so a backtest and the live strategy cannot drift apart.</p>
+              <p>A strategy that is long in rises and short in falls shows a V of dots, a beta near 0 and a large alpha: that is timing the market, which one straight line cannot tell apart.</p>
             </Callout>
           </div>
         </Section>

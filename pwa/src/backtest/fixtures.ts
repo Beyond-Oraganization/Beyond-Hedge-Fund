@@ -36,6 +36,15 @@ export function deviceAnswer(overrides: Partial<DeviceBacktest> = {}): DeviceBac
     priceTimes: POINT_TIMES.slice(0, 3),
     prices: [2000, 2010, 2005],
     computedMs: 12,
+    // The bot's worked example (docs/market-beta-plan.md): five days, beta 0.646, alpha +0.202 % a day.
+    marketBeta: {
+      days: 5, beta: 0.645614, alpha: 0.00201754, annualAlpha: 0.736404, rSquared: 0.993252, correlation: 0.996621,
+      betaError: 0.0307226, alphaError: 0.000350292, alphaT: 5.75961, daysPerYear: 365, inMarketPercent: 60, riskFree: 0,
+    },
+    marketBetaMissing: null,
+    dailyReturns: [[0.01, 0.008], [-0.005, -0.002], [0.02, 0.015], [-0.01, -0.004], [0.005, 0.006]].map(([asset, strategy], day) => ({
+      day: `2025-01-0${day + 7}`, asset: asset!, strategy: strategy!, inMarket: day % 2 === 0,
+    })),
     ...overrides,
   }
 }

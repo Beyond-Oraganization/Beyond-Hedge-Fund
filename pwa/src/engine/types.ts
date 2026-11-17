@@ -29,6 +29,8 @@ export type EngineRequest = {
   to?: Iso | null
   /** For `simulate`: how the alternative price histories are made. Every worker of one run gets the same seed. */
   scenarios?: { method: PathMethod; seed: number } | null
+  /** What cash earns a year, in percent, taken off both returns for alpha; 0 when left out. */
+  riskFree?: number
 }
 
 /** How a Monte Carlo makes its alternative price histories (the bot's Core/Backtesting/PricePaths.cs). */
@@ -107,6 +109,29 @@ export type SummaryRequest = { initialBalance: number; real: ScenarioResult; res
 
 export type DeviceSummary = { ok: true; engine: string; summary: ScenarioSummary }
 
+/** One day's dot: the market's return and the strategy's (its open positions valued at the close), as fractions. */
+export type DayReturn = { day: string; asset: number; strategy: number; inMarket: boolean }
+
+/**
+ * How the strategy moved with its market: the least-squares line through one dot a day (the bot's
+ * Core/Portfolio/MarketBeta.cs). Returns and rates are fractions; `alpha` is per day, `annualAlpha` × `daysPerYear`.
+ */
+export type MarketBeta = {
+  days: number
+  beta: number
+  alpha: number
+  annualAlpha: number
+  rSquared: number
+  correlation: number
+  betaError: number
+  alphaError: number
+  /** Alpha ÷ its standard error; null when the line fits exactly. */
+  alphaT: number | null
+  daysPerYear: number
+  inMarketPercent: number
+  riskFree: number
+}
+
 export type DeviceBacktest = {
   ok: true
   /** The engine’s version, e.g. "2.2.0". */
@@ -147,6 +172,11 @@ export type DeviceBacktest = {
   priceTimes: Iso[]
   prices: number[]
   computedMs: number
+  /** Beta and alpha against the market (engine 2.6.0 on); null when `marketBetaMissing` says why. */
+  marketBeta: MarketBeta | null
+  marketBetaMissing: string | null
+  /** One dot a day after the first, for the scatter. */
+  dailyReturns: DayReturn[]
 }
 
 export type EngineFailure = { ok: false; engine: string; error: { message: string } }

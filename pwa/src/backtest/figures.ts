@@ -1,6 +1,6 @@
 import { arrow, fmtCount, fmtElapsed, fmtMoney, fmtPercent, fmtSignedMoney, fmtSignedPercent, fmtTime, tone } from '../format.ts'
 import { kellyBasisWords, sizingWords } from '../words.ts'
-import { isDeviceRun, type SavedRun } from './runs.ts'
+import { isDeviceRun, type DeviceResult, type SavedRun } from './runs.ts'
 
 export type Headline = { label: string; value: string; sub?: string; tone?: 'gain' | 'loss' | null }
 export type FigureGroup = { title: string; rows: [label: string, value: string][] }
@@ -48,6 +48,7 @@ export function figuresOf(run: SavedRun): { headline: Headline[]; groups: Figure
         ],
       },
       { title: 'Risk', rows: [['Max drawdown', `${fmtSignedMoney(r.maxDrawdown)} (${fmtPercent(r.maxDrawdownPercent)})`]] },
+      { title: 'Against the market', rows: marketRows(r) },
       {
         title: 'Sizing',
         rows: [
@@ -68,6 +69,28 @@ export function figuresOf(run: SavedRun): { headline: Headline[]; groups: Figure
       },
     ],
   }
+}
+
+/** Beta, alpha and how far to trust them; why there are none; or, for a run saved before 2.6.0, how to get them. */
+function marketRows(r: DeviceResult): [label: string, value: string][] {
+  const m = r.marketBeta
+  if (m) {
+    const riskFree = m.riskFree ? `, after ${fmtPercent(m.riskFree * 100)} a year risk-free` : ''
+    return [
+      ['Beta', `${m.beta.toFixed(2)}: ${betaWords(m.beta)}`],
+      ['Alpha', `${fmtSignedPercent(m.annualAlpha * 100)} a year${m.alphaT == null ? '' : `, t ${m.alphaT.toFixed(1)}`}${riskFree}`],
+      ['Fit', `R² ${m.rSquared.toFixed(2)} over ${fmtCount(m.days)} days`],
+      ['In the market', `${fmtPercent(m.inMarketPercent, 0)} of days`],
+    ]
+  }
+  if (r.marketBetaMissing) return [['Beta and alpha', `none: ${r.marketBetaMissing}`]]
+  return [['Beta and alpha', 'Run it again to see beta and alpha.']]
+}
+
+/** What a beta means in words: how much of the market's daily move the strategy moved with, or against. */
+export function betaWords(beta: number): string {
+  const share = fmtPercent(Math.abs(beta) * 100, 0)
+  return beta < 0 ? `it moved against the market, by ${share} of its daily move` : `it moved with ${share} of the market’s daily move`
 }
 
 function legacyFigures(run: Exclude<SavedRun, { kind: 'device' }>): { headline: Headline[]; groups: FigureGroup[] } {
