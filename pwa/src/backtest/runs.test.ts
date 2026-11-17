@@ -44,12 +44,46 @@ describe('a device backtest as the page keeps it', () => {
   })
 })
 
+describe('beta and alpha as the page keeps them', () => {
+  it('keeps the figures and each day as a [market, strategy] pair', () => {
+    const kept = keep(deviceAnswer())
+
+    expect(kept.marketBeta?.beta).toBeCloseTo(0.646, 3)
+    expect(kept.dayDots).toEqual([[0.01, 0.008], [-0.005, -0.002], [0.02, 0.015], [-0.01, -0.004], [0.005, 0.006]])
+    expect(kept).not.toHaveProperty('dailyReturns')
+  })
+
+  it('groups them under “Against the market”, worded by direction', () => {
+    const rows = Object.fromEntries(figuresOf(run(deviceAnswer())).groups.find((group) => group.title === 'Against the market')!.rows)
+
+    expect(rows).toEqual({
+      Beta: '0.65: it moved with 65% of the market’s daily move',
+      Alpha: '+73.64% a year, t 5.8',
+      Fit: 'R² 0.99 over 5 days',
+      'In the market': '60% of days',
+    })
+    const short = deviceAnswer({ marketBeta: { ...deviceAnswer().marketBeta!, beta: -0.32 } })
+    expect(Object.fromEntries(figuresOf(run(short)).groups.find((group) => group.title === 'Against the market')!.rows).Beta).toBe(
+      '-0.32: it moved against the market, by 32% of its daily move',
+    )
+  })
+
+  it('says why there are none, and asks a run saved before 2.6.0 to be run again', () => {
+    const none = deviceAnswer({ marketBeta: null, marketBetaMissing: 'only 2 days to compare, and it needs at least 3', dailyReturns: [] })
+    const rowsOf = (r: DeviceRun) => figuresOf(r).groups.find((group) => group.title === 'Against the market')!.rows
+
+    expect(rowsOf(run(none))).toEqual([['Beta and alpha', 'none: only 2 days to compare, and it needs at least 3']])
+    const { marketBeta: _beta, marketBetaMissing: _missing, dayDots: _dots, ...before } = keep(deviceAnswer())
+    expect(rowsOf({ ...run(deviceAnswer()), result: before })).toEqual([['Beta and alpha', 'Run it again to see beta and alpha.']])
+  })
+})
+
 describe('the figures of a run', () => {
   it('heads with four figures and groups the rest', () => {
     const { headline, groups } = figuresOf(run())
 
     expect(headline.map((figure) => figure.label)).toEqual(['Profit / loss', 'Final balance', 'Win rate', 'Max drawdown'])
-    expect(groups.map((group) => group.title)).toEqual(['Result', 'Trades', 'Risk', 'Sizing', 'Run'])
+    expect(groups.map((group) => group.title)).toEqual(['Result', 'Trades', 'Risk', 'Against the market', 'Sizing', 'Run'])
   })
 
   it('says why this run’s Kelly cannot be used, and counts overlapping trades', () => {

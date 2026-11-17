@@ -1,18 +1,27 @@
 import type { StrategyInput } from '../api/commands.ts'
 import type { BacktestReport } from '../api/parse/strategies.ts'
-import type { DeviceBacktest, DeviceScenarios, PathMethod, ScenarioSummary } from '../engine/types.ts'
+import type { DeviceBacktest, DeviceScenarios, MarketBeta, PathMethod, ScenarioSummary } from '../engine/types.ts'
 
 /** A Monte Carlo from before 2.2.0, which resampled the backtest's own trades: runs saved then still hold one. */
 export type TradeResampling = { paths: number; endedAboveStartPercent: number }
 
 /**
  * A device backtest as the page keeps it: the engine's answer, with the trades reduced to their returns (what the
- * returns chart needs) and the balance curve to [time in ms, balance] pairs, so saved runs stay small.
+ * returns chart needs), the balance curve to [time in ms, balance] pairs and the daily returns to [market, strategy]
+ * pairs, so saved runs stay small.
  */
-export type DeviceResult = Omit<DeviceBacktest, 'trades' | 'equityCurve' | 'realScenario' | 'pointTimes' | 'priceTimes' | 'prices'> & {
+export type DeviceResult = Omit<
+  DeviceBacktest,
+  'trades' | 'equityCurve' | 'realScenario' | 'pointTimes' | 'priceTimes' | 'prices' | 'marketBeta' | 'marketBetaMissing' | 'dailyReturns'
+> & {
   tradeReturns: number[]
   overlappingTrades: number
   curve: [number, number][]
+  /** Only in runs saved from 2.6.0 on. */
+  marketBeta?: MarketBeta | null
+  marketBetaMissing?: string | null
+  /** Each day's [market return, strategy return], as fractions; only in runs saved from 2.6.0 on. */
+  dayDots?: [number, number][]
   /** Only in runs saved before 2.2.0. */
   monteCarlo?: TradeResampling | null
 }
@@ -73,12 +82,13 @@ export const METHOD_NAMES: Record<PathMethod, string> = { Bootstrap: 'bootstrap'
 /** The engine's answer as the page keeps it. */
 export function keep(answer: DeviceBacktest): DeviceResult {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { trades, equityCurve, realScenario, pointTimes, priceTimes, prices, ...rest } = answer
+  const { trades, equityCurve, realScenario, pointTimes, priceTimes, prices, dailyReturns, ...rest } = answer
   return {
     ...rest,
     tradeReturns: trades.map((trade) => trade.return),
     overlappingTrades: trades.filter((trade) => trade.overlapped).length,
     curve: equityCurve.map((point) => [Date.parse(point.time), point.balance]),
+    dayDots: dailyReturns.map((day) => [day.asset, day.strategy]),
   }
 }
 

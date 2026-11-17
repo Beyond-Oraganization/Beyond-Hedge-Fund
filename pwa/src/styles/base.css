@@ -27,6 +27,8 @@ main:focus{outline:none}
 .sec-head{margin-bottom:28px}
 .stack{display:grid;gap:24px}
 .stack-sm{display:grid;gap:12px}
+/* A grid item is as wide as its content by default: a chart sized to its box would then hold the column wider than the screen. */
+.stack>*,.stack-sm>*{min-width:0}
 
 /* route ruler (marathon markers): only on wide screens, where there is room in the margin */
 .rl,.rt,.rn{display:none}

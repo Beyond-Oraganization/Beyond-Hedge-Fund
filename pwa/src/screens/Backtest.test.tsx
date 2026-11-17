@@ -152,6 +152,22 @@ describe('Backtest', () => {
     expect(screen.getByText('All figures').closest('details')).not.toHaveAttribute('open')
   })
 
+  it('sets the run against its market: a dot a day, the fitted line, beta and alpha', async () => {
+    show()
+    await run()
+
+    expect(await screen.findByRole('img', { name: '5 days. Beta 0.65: it moved with 65% of the market’s daily move. Alpha +73.64% a year (t 5.8).' })).toBeInTheDocument()
+    expect(screen.getByText('A day (5)')).toBeInTheDocument()
+  })
+
+  it('says why a run has no beta or alpha', async () => {
+    engineAnswer = deviceAnswer({ marketBeta: null, marketBetaMissing: 'only 2 days to compare, and it needs at least 3', dailyReturns: [] })
+    show()
+    await run()
+
+    expect(await screen.findByText('No beta or alpha: only 2 days to compare, and it needs at least 3.')).toBeInTheDocument()
+  })
+
   it('says how many alternative pasts ended above the starting balance, and where the real history ranks, under the chart', async () => {
     show()
     await run()
