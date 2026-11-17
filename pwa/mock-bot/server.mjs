@@ -208,7 +208,7 @@ export function startServer({ port = 8443, key = DEFAULT_KEY, origins = '*', con
       }
 
       // The fund's people (owner), audit log, clients and managed accounts.
-      if (args[0] === 'people') return reply(people.manage(args))
+      if (args[0] === 'people') return reply(people.manage(args, caller.kind === 'person' ? caller.person.login : null))
       // The strategy menu, clients' limits, and a start or check from the menu (turned into the bot's own arguments).
       const person = caller.kind === 'person' ? caller.person : null
       if (args[0] === 'menu' || (args[0] === 'clients' && args[1] === 'limits')) return reply(menu.run(args, person))

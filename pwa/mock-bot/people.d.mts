@@ -9,7 +9,7 @@ export type MockPeople = {
   refusal(person: Person, args: string[]): string | null
   accountsOf(person: Person): string[]
   roleOf(login: string): Person['role'] | null
-  manage(args: string[]): Answer
+  manage(args: string[], by?: string | null): Answer
   signin(args: string[]): Answer
   me(caller: Caller, args: string[]): Answer
   signout(caller: Caller, args: string[]): Answer
