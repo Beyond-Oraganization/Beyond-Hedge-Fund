@@ -5,7 +5,7 @@ import type { CommandData } from './bot.ts'
 
 // Answers kept on the device are kept already read, so only the app version that read them may put them back.
 describe('the answers this device remembers for a bot', () => {
-  const data = { result: { exitCode: 0 }, parsed: { ok: true, value: ['drcs'] }, at: Date.now(), roundTripMs: 5 } as unknown as CommandData<string[]>
+  const data = { result: { exitCode: 0 }, parsed: { ok: true, value: ['sample'] }, at: Date.now(), roundTripMs: 5 } as unknown as CommandData<string[]>
 
   afterEach(async () => {
     queryClient.clear()

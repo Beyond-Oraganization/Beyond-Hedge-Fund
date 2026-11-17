@@ -10,6 +10,7 @@ import { createBot, type MockBot } from '../../../mock-bot/bot.mjs'
 import { createClients } from '../../../mock-bot/clients.mjs'
 import { createMenu, type MockMenu } from '../../../mock-bot/menu.mjs'
 import { createPeople } from '../../../mock-bot/people.mjs'
+import { createPublished, type MockPublished } from '../../../mock-bot/published.mjs'
 import { queryClient } from '../../api/bot.ts'
 import type { CommandResult } from '../../api/types.ts'
 import { useConnections } from '../../state/connections.ts'
@@ -26,6 +27,7 @@ import MenuEditor from './MenuEditor.tsx'
 const BOT_URL = 'https://fund.test:8443'
 let bot: MockBot
 let menu: MockMenu
+let published: MockPublished
 let person: { login: string; role: string } | null = null
 let sent: string[][] = []
 
@@ -37,6 +39,7 @@ const server = setupServer(
     let { args } = (await request.json()) as { args: string[] }
     sent.push(args)
     if (args[0] === 'menu' || (args[0] === 'clients' && args[1] === 'limits')) return result(args, menu.run(args, person))
+    if (args[0] === 'published') return result(args, published.run(args, person))
     let check: { refusal: string | null; largest: number | null } | null = null
     if (args[0] === 'trading' && args.includes('--setup')) {
       const s = bot.state as { account: { balance: number; currency: string }; sessions: Map<string, unknown> }
@@ -71,6 +74,7 @@ beforeEach(() => {
   bot = createBot({ ticking: false, seed: 3 })
   const clients = createClients(createPeople().roleOf)
   menu = createMenu({ clientOf: (login) => clients.clientOf(login) })
+  published = createPublished({ setupOf: (id) => menu.setup(id), sees: (who) => !who || who.role !== 'client' || Boolean(who.trusted) })
   person = null
   sent = []
 })
@@ -91,7 +95,7 @@ describe('A client’s Strategies', () => {
     show(<ClientStrategies />)
 
     const running = await screen.findByRole('region', { name: 'Trading for you' })
-    // Started by the fund, not from the menu: no bot name ("drcs") for a client, and what it trades in plain words.
+    // Started by the fund, not from the menu: no bot name ("sample") for a client, and what it trades in plain words.
     expect(await within(running).findByText('A strategy run by the fund')).toBeInTheDocument()
     expect(within(running).getByText(/^Gold · since /)).toBeInTheDocument()
     const offers = screen.getByRole('region', { name: 'Add a strategy' })
@@ -99,6 +103,17 @@ describe('A client’s Strategies', () => {
     expect(within(offers).getByText('Euro range, careful')).toBeInTheDocument()
     expect(within(offers).getByText('25% of the budget per position.')).toBeInTheDocument()
     expect(within(offers).getByText('Careful')).toBeInTheDocument()
+  })
+
+  it('says how the fund tested a setup: its newest published backtest, in figures only', async () => {
+    show(<ClientStrategies />)
+
+    const offers = await screen.findByRole('region', { name: 'Add a strategy' })
+    const gold = (await within(offers).findByText('Gold trend, steady')).closest('li')!
+    expect(await within(gold).findByText(/Tested from 2024-01-01 to 2026-11-01: \+41\.20%, 86 trades, 59\.3% of them won, deepest fall 9\.4%\./)).toBeInTheDocument()
+    expect(within(gold).getByText('Gold 2024–2026.')).toBeInTheDocument()
+    const euro = within(offers).getByText('Euro range, careful').closest('li')!
+    expect(within(euro).queryByText(/Tested from/)).toBeNull()
   })
 
   it('checks a budget against their limits, refuses one too large in the bot’s words, and starts one that fits', async () => {
@@ -135,7 +150,7 @@ describe('A client’s Strategies', () => {
     expect(ask).toHaveTextContent(/It won’t open new trades\./)
     await user.click(within(ask).getByRole('button', { name: 'Stop it' }))
 
-    await waitFor(() => expect(sent).toContainEqual(['trading', 'stop', '--name', 'drcs']))
+    await waitFor(() => expect(sent).toContainEqual(['trading', 'stop', '--name', 'sample']))
     expect(await screen.findByText('Nothing trades for you right now')).toBeInTheDocument()
   })
 
@@ -183,11 +198,11 @@ describe('The owner’s Strategy menu', () => {
 
     expect(await screen.findByText(/^Added menu setup 3: Gold dips, bold \(bold\)/)).toBeInTheDocument()
     const add = sent.find((args) => args[0] === 'menu' && args[1] === 'add')!
-    expect(add).toEqual(expect.arrayContaining(['drcs', '--symbol', 'XAUUSD', '--interval', '1h', '--name', 'Gold dips, bold', '--risk', 'bold']))
+    expect(add).toEqual(expect.arrayContaining(['sample', '--symbol', 'XAUUSD', '--interval', '1h', '--name', 'Gold dips, bold', '--risk', 'bold']))
   })
 
   it('takes a backtest offered to clients, filled in', async () => {
-    const link = offerLink({ strategy: 'drcs', symbol: 'XAUUSD', interval: '1h', params: { depth: 30 }, rules: ['open long on cross down lower 2'], sizing: 'percent:10' })
+    const link = offerLink({ strategy: 'sample', symbol: 'XAUUSD', interval: '1h', params: { length: 30 }, rules: ['open long on cross down below 2'], sizing: 'percent:10' })
     show(<MenuEditor />, link)
 
     expect(await screen.findByRole('region', { name: 'Offer this backtest to clients' })).toBeInTheDocument()
@@ -222,9 +237,9 @@ describe('A client’s Limits', () => {
 
 describe('the menu’s words and links', () => {
   it('hands a backtest over and back', () => {
-    const input = { strategy: 'drcs', symbol: 'XAUUSD', interval: '1h', params: { depth: 30 }, rules: ['open long on cross down lower 2'], sizing: 'kelly:50' }
+    const input = { strategy: 'sample', symbol: 'XAUUSD', interval: '1h', params: { length: 30 }, rules: ['open long on cross down below 2'], sizing: 'kelly:50' }
     const config = offered(new URLSearchParams(offerLink(input).split('?')[1]).get('offer'))
-    expect(config).toMatchObject({ strategy: 'drcs', market: 'XAUUSD 1h', rules: ['open long on cross down lower 2'] })
+    expect(config).toMatchObject({ strategy: 'sample', market: 'XAUUSD 1h', rules: ['open long on cross down below 2'] })
     expect(offered('not base64 json')).toBeNull()
   })
 

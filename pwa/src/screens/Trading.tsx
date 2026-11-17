@@ -235,7 +235,7 @@ function StartForm({ running }: { running: TradingSessionState[] }) {
           label="Session name (optional)"
           registration={{ name: 'session-name', value: name, onChange: (event: ChangeEvent<HTMLInputElement>) => setName(event.target.value) }}
           error={nameError ?? undefined}
-          hint="Several sessions can trade one market, e.g. two variants of drcs on EURPLN 1h; each closes only its own positions. The same name replaces that session; left empty, the bot names it (drcs, drcs 2, …)."
+          hint="Several sessions can trade one market, e.g. two variants of one strategy on EURPLN 1h; each closes only its own positions. The same name replaces that session; left empty, the bot names it after the strategy (sample, sample 2, …)."
         />
       ) : null}
       <TextField

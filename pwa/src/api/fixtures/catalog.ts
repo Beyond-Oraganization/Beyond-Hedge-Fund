@@ -13,17 +13,17 @@ export const SIZING: SizingCatalog = {
   ],
 }
 
-export const DRCS: StrategyDefinition = {
-  name: 'drcs',
-  title: 'Double Red Cross',
+export const SAMPLE: StrategyDefinition = {
+  name: 'sample',
+  title: 'Sample bands',
   description: 'Bands around the EMA.',
   defaultMarket: { symbol: 'XAUUSD', interval: '1h' },
   parameters: [
-    { name: 'depth', default: 23, min: 1, max: 500, meaning: 'Lookback', whole: true },
-    { name: 'deviation', default: 1, min: 1, max: 20, meaning: 'Spacing', whole: true },
-    { name: 'moving-count', default: 2, min: 1, max: 10, meaning: 'Bands', whole: true },
+    { name: 'length', default: 23, min: 1, max: 500, meaning: 'Lookback', whole: true },
+    { name: 'spread', default: 1, min: 1, max: 20, meaning: 'Spacing', whole: true },
+    { name: 'lines', default: 2, min: 1, max: 10, meaning: 'Bands', whole: true },
   ],
-  rules: { defaults: ['open long on cross up lower 1', 'close long on cross down lower 1'], syntax: 'open|close long|short on cross up|down lower|upper N' },
+  rules: { defaults: ['open long on cross up below 1', 'close long on cross down below 1'], syntax: 'open|close long|short on cross up|down below|above N' },
   sizing: SIZING,
 }
 
@@ -39,5 +39,5 @@ export const MOMENTUM: StrategyDefinition = {
 }
 
 /** A strategy of a bot from before rules. */
-export const LEGACY: StrategyDefinition = { ...DRCS, name: 'old', rules: null, sizing: null, parameters: [...DRCS.parameters, { name: 'trigger', default: 1, min: 1, max: 10, meaning: 'Band', whole: true }] }
+export const LEGACY: StrategyDefinition = { ...SAMPLE, name: 'old', rules: null, sizing: null, parameters: [...SAMPLE.parameters, { name: 'trigger', default: 1, min: 1, max: 10, meaning: 'Band', whole: true }] }
 

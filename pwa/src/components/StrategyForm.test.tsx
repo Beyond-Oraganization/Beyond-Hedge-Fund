@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { MarketRow } from '../api/parse/markets.ts'
 import type { StrategyDefinition } from '../api/parse/strategies.ts'
-import { DRCS, LEGACY, MOMENTUM } from '../api/fixtures/catalog.ts'
+import { SAMPLE, LEGACY, MOMENTUM } from '../api/fixtures/catalog.ts'
 import { initialConfig, validateConfig, type StrategyConfig } from '../strategy/config.ts'
 import { StrategyForm } from './StrategyForm.tsx'
 
@@ -37,13 +37,13 @@ const setup = (definitions: StrategyDefinition[]) => {
 
 describe('the rule editor', () => {
   it('builds each rule from the strategy’s syntax: a menu per choice, a field per number', () => {
-    const { rule } = setup([DRCS])
+    const { rule } = setup([SAMPLE])
     const first = rule(1)
     expect(within(first).getByRole('combobox', { name: 'Rule 1: open or close' })).toHaveValue('open')
     expect(within(first).getByRole('combobox', { name: 'Rule 1: long or short' })).toHaveValue('long')
     expect(within(first).getByRole('combobox', { name: 'Rule 1: up or down' })).toHaveValue('up')
-    expect(within(first).getByRole('combobox', { name: 'Rule 1: lower or upper' })).toHaveValue('lower')
-    expect(within(first).getByRole('spinbutton', { name: 'Rule 1: number after lower or upper' })).toHaveValue(1)
+    expect(within(first).getByRole('combobox', { name: 'Rule 1: below or above' })).toHaveValue('below')
+    expect(within(first).getByRole('spinbutton', { name: 'Rule 1: number after below or above' })).toHaveValue(1)
     expect(rule(2)).toBeInTheDocument()
   })
 
@@ -61,41 +61,41 @@ describe('the rule editor', () => {
   })
 
   it('keeps the controls while a number is half typed, and says what is missing', async () => {
-    const { rule } = setup([DRCS])
+    const { rule } = setup([SAMPLE])
     const number = within(rule(1)).getByRole('spinbutton')
     await userEvent.clear(number)
     expect(within(rule(1)).getByRole('spinbutton')).toHaveFocus()
-    expect(screen.getByText('Write it as: open|close long|short on cross up|down lower|upper N.')).toBeInTheDocument()
+    expect(screen.getByText('Write it as: open|close long|short on cross up|down below|above N.')).toBeInTheDocument()
   })
 
   it('adds, moves and removes rules, keeping their order', async () => {
-    const { last } = setup([DRCS])
+    const { last } = setup([SAMPLE])
     await userEvent.click(screen.getByRole('button', { name: 'Add a rule' }))
-    expect(last().rules).toEqual(['open long on cross up lower 1', 'close long on cross down lower 1', 'open long on cross up lower 1'])
+    expect(last().rules).toEqual(['open long on cross up below 1', 'close long on cross down below 1', 'open long on cross up below 1'])
     await userEvent.click(screen.getByRole('button', { name: 'Move rule 2 up' }))
-    expect(last().rules[0]).toBe('close long on cross down lower 1')
+    expect(last().rules[0]).toBe('close long on cross down below 1')
     await userEvent.click(screen.getByRole('button', { name: 'Remove rule 3' }))
-    expect(last().rules).toEqual(['close long on cross down lower 1', 'open long on cross up lower 1'])
+    expect(last().rules).toEqual(['close long on cross down below 1', 'open long on cross up below 1'])
     expect(screen.getByRole('button', { name: 'Move rule 1 up' })).toBeDisabled()
     await userEvent.click(screen.getByRole('button', { name: 'Reset the rules to the defaults' }))
-    expect(last().rules).toEqual(DRCS.rules!.defaults)
+    expect(last().rules).toEqual(SAMPLE.rules!.defaults)
   })
 
   it('writes any rule as text, and offers the controls again once the text fits', async () => {
-    const { last } = setup([DRCS])
+    const { last } = setup([SAMPLE])
     await userEvent.click(screen.getAllByRole('button', { name: 'Write it as text' })[0]!)
     const text = screen.getByRole('textbox', { name: 'Rule 1' })
     await userEvent.clear(text)
-    await userEvent.type(text, 'open short on cross down upper')
+    await userEvent.type(text, 'open short on cross down above')
     expect(screen.getByRole('button', { name: 'Fix the text to choose it from the lists' })).toBeDisabled()
     await userEvent.type(text, ' 2')
-    expect(last().rules[0]).toBe('open short on cross down upper 2')
+    expect(last().rules[0]).toBe('open short on cross down above 2')
     await userEvent.click(screen.getByRole('button', { name: 'Choose from the lists' }))
-    expect(within(screen.getByRole('group', { name: 'Rule 1' })).getByRole('combobox', { name: 'Rule 1: lower or upper' })).toHaveValue('upper')
+    expect(within(screen.getByRole('group', { name: 'Rule 1' })).getByRole('combobox', { name: 'Rule 1: below or above' })).toHaveValue('above')
   })
 
   it('edits rules as text when the syntax cannot be built', () => {
-    setup([{ ...DRCS, rules: { defaults: ['open long on something new'], syntax: 'open|close long|short on CONDITION' } }])
+    setup([{ ...SAMPLE, rules: { defaults: ['open long on something new'], syntax: 'open|close long|short on CONDITION' } }])
     expect(screen.getByRole('textbox', { name: 'Rule 1' })).toHaveValue('open long on something new')
     expect(screen.queryByRole('button', { name: 'Write it as text' })).toBeNull()
   })
@@ -109,42 +109,42 @@ describe('the rule editor', () => {
 
 describe('the strategy and its parameters', () => {
   it('switching strategy brings its parameters and rules', async () => {
-    const { last } = setup([DRCS, MOMENTUM])
+    const { last } = setup([SAMPLE, MOMENTUM])
     await userEvent.selectOptions(screen.getByLabelText('Strategy'), 'momentum')
     expect(last()).toMatchObject({ strategy: 'momentum', params: { threshold: '0.5' }, rules: MOMENTUM.rules!.defaults })
-    expect(screen.queryByLabelText('depth')).toBeNull()
+    expect(screen.queryByLabelText('length')).toBeNull()
   })
 
   it('shows a parameter’s range error from the catalog', async () => {
-    setup([DRCS])
-    const depth = screen.getByLabelText('depth')
-    await userEvent.clear(depth)
-    await userEvent.type(depth, '900')
-    expect(screen.getByText('depth must be between 1 and 500.')).toBeInTheDocument()
+    setup([SAMPLE])
+    const length = screen.getByLabelText('length')
+    await userEvent.clear(length)
+    await userEvent.type(length, '900')
+    expect(screen.getByText('length must be between 1 and 500.')).toBeInTheDocument()
   })
 })
 
 describe('saved setups', () => {
   it('saves a setup and applies it again, keeping the market', async () => {
-    const { last } = setup([DRCS])
+    const { last } = setup([SAMPLE])
     await userEvent.click(screen.getByText('Saved setups'))
     await userEvent.click(screen.getAllByRole('button', { name: 'Write it as text' })[0]!)
     const text = screen.getByRole('textbox', { name: 'Rule 1' })
     await userEvent.clear(text)
-    await userEvent.type(text, 'open short on cross down upper 1')
+    await userEvent.type(text, 'open short on cross down above 1')
     await userEvent.type(screen.getByLabelText('Save this setup as'), 'Short the top')
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
     await userEvent.click(screen.getByRole('button', { name: 'Reset the rules to the defaults' }))
-    expect(last().rules[0]).toBe('open long on cross up lower 1')
+    expect(last().rules[0]).toBe('open long on cross up below 1')
     await userEvent.selectOptions(screen.getByLabelText('Setup'), 'Short the top')
     await userEvent.click(screen.getByRole('button', { name: 'Apply' }))
-    expect(last()).toMatchObject({ market: 'XAUUSD 1h', rules: ['open short on cross down upper 1', 'close long on cross down lower 1'] })
+    expect(last()).toMatchObject({ market: 'XAUUSD 1h', rules: ['open short on cross down above 1', 'close long on cross down below 1'] })
   })
 })
 
 describe('the position sizing', () => {
   it('offers the bot’s methods, each with its own value and range, and keeps it across strategies', async () => {
-    const { last } = setup([DRCS, MOMENTUM])
+    const { last } = setup([SAMPLE, MOMENTUM])
     const method = screen.getByRole('combobox', { name: 'Position sizing' })
     expect(method).toHaveValue('percent')
     expect(screen.getByLabelText('Percent of the balance each position is worth')).toHaveValue(50)
@@ -161,7 +161,7 @@ describe('the position sizing', () => {
   })
 
   it('says when a value is out of range', async () => {
-    setup([DRCS])
+    setup([SAMPLE])
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Position sizing' }), 'fixed')
     const amount = screen.getByLabelText("Amount each position is worth, in the account's currency")
     await userEvent.clear(amount)

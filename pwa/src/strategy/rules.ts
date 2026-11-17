@@ -1,6 +1,6 @@
 /**
  * A strategy's rules, built from the syntax the bot gives for them in `strategies --json`, such as
- * `open|close long|short on cross up|down lower|upper N`. Each word of the syntax is one position of a rule: a
+ * `open|close long|short on cross up|down below|above N`. Each word of the syntax is one position of a rule: a
  * fixed word (`on`), a choice (`up|down`) or a number (`N`). The app knows no strategy: a new strategy, or a new
  * kind of condition, written the same way works here unchanged. A syntax it cannot build (a placeholder it does
  * not know, such as `CONDITION`) gives no grammar, and the rule is then written as text; the bot checks it either way.
@@ -10,7 +10,7 @@ export type RuleSlot = { kind: 'word'; text: string } | { kind: 'choice'; option
 
 export type RuleGrammar = { syntax: string; slots: RuleSlot[] }
 
-/** The bot's own placeholder for a whole number in a rule (EnvelopeBand reads it with NumberStyles.None). */
+/** The bot's own placeholder for a whole number in a rule (a strategy's price line reads it as digits only). */
 const NUMBER = 'N'
 const PLACEHOLDER = /^[A-Z][A-Z0-9_]*$/
 const WHOLE = /^\d+$/

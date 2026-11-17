@@ -103,7 +103,7 @@ export const usesDefaultRules = (config: StrategyConfig, definition: StrategyDef
 
 /**
  * Checks what the catalog says: every parameter a number in its range (a whole number where it must be), and every
- * rule written as the strategy's syntax says. What depends on several values (such as a band beyond moving-count)
+ * rule written as the strategy's syntax says. What depends on several values (such as a band beyond the number of bands)
  * is the bot's to judge: it answers with a message, shown next to the form.
  */
 export function validateConfig(config: StrategyConfig, definition: StrategyDefinition | undefined): ConfigErrors {
@@ -187,5 +187,5 @@ export function describeSizing(sizing: string | undefined, catalog: SizingCatalo
   }
 }
 
-/** "depth=23 deviation=1 moving-count=2", for confirmations. */
+/** "length=20 spread=3 lines=2", for confirmations. */
 export const describeParams = (input: StrategyInput) => Object.entries(input.params).map(([name, value]) => `${name}=${value}`).join(' ')

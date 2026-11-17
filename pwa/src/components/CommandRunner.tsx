@@ -15,8 +15,8 @@ import { Button, Pill } from './ui.tsx'
 export const KNOWN_COMMANDS = [
   'help', 'status', 'session', 'session --json', 'session account', 'session positions', 'session stats', 'session strategies', 'session system',
   'balance', 'positions', 'market list', 'market add XAUUSD 1h', 'market sync', 'market remove', 'candles show XAUUSD 1h --last 20',
-  'candles oldest XAUUSD 1h', 'indicators show XAUUSD 1h', 'strategies', 'signal drcs -d', 'backtest drcs -d', 'trading status',
-  'trading start drcs -d', 'trading stop', 'orders list', 'orders list --broker', 'orders place XAUUSD buy 1', 'orders close',
+  'candles oldest XAUUSD 1h', 'strategies', 'signal sample -d', 'backtest sample -d', 'trading status',
+  'trading start sample -d', 'trading stop', 'orders list', 'orders list --broker', 'orders place XAUUSD buy 1', 'orders close',
   'orders clear', 'login', 'logout', 'register', 'credentials', 'market --help', 'trading --help', 'orders --help',
 ]
 

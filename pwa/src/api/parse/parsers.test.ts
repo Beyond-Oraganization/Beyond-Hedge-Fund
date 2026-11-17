@@ -4,7 +4,7 @@ import { legacyStrategies, realBacktest, realMarketList, realSizedBacktest, real
 import type { CommandResult } from '../types.ts'
 import { parseSession } from '../session.ts'
 import { notices } from './blocks.ts'
-import { parseCandles, parseIndicators, parseMarketList, parseMarketSync, parseOldestCandle } from './markets.ts'
+import { parseCandles, parseMarketList, parseMarketSync, parseOldestCandle } from './markets.ts'
 import { parseOrders, readFill } from './orders.ts'
 import { parseStatus } from './status.ts'
 import { parseBacktest, parseSignal, parseStrategyCatalog, readKelly, readParameterLine, readSignal, readStrategyLine } from './strategies.ts'
@@ -20,7 +20,7 @@ describe('the bot’s own approved outputs', () => {
   it('reads the backtest report (Backtest_PrintsTheReport.txt)', () => {
     const report = parseBacktest(realBacktest)
     expect(report.ok && report.value).toMatchObject({
-      strategy: 'drcs',
+      strategy: 'sample',
       market: 'BTCUSDT 1h',
       start: Date.UTC(2025, 0, 6, 0, 0),
       end: Date.UTC(2025, 2, 30, 8, 0),
@@ -40,15 +40,15 @@ describe('the bot’s own approved outputs', () => {
       maxDrawdownPercent: -2.8,
       stillOpen: 0,
       computedMs: 87,
-      parameters: 'depth=23 deviation=1 moving-count=2',
-      rules: ['open long on cross up lower 1', 'close long on cross down lower 1'],
+      parameters: 'length=23 spread=1 lines=2',
+      rules: ['open long on cross up below 1', 'close long on cross down below 1'],
     })
-    expect(readParameterLine('depth=23 deviation=1 moving-count=2')).toEqual({ depth: 23, deviation: 1, 'moving-count': 2 })
+    expect(readParameterLine('length=23 spread=1 lines=2')).toEqual({ length: 23, spread: 1, lines: 2 })
   })
 
   it('splits the strategy line into parameters and rules, with or without rules', () => {
-    expect(readStrategyLine('depth=30 deviation=1 moving-count=2, rules: open short on cross down upper 1')).toEqual({ parameters: 'depth=30 deviation=1 moving-count=2', rules: ['open short on cross down upper 1'] })
-    expect(readStrategyLine('depth=23 deviation=1 moving-count=2 trigger=1')).toEqual({ parameters: 'depth=23 deviation=1 moving-count=2 trigger=1', rules: [] })
+    expect(readStrategyLine('length=30 spread=1 lines=2, rules: open short on cross down above 1')).toEqual({ parameters: 'length=30 spread=1 lines=2', rules: ['open short on cross down above 1'] })
+    expect(readStrategyLine('length=23 spread=1 lines=2 trigger=1')).toEqual({ parameters: 'length=23 spread=1 lines=2 trigger=1', rules: [] })
     expect(readStrategyLine(null)).toEqual({ parameters: null, rules: [] })
   })
 
@@ -59,7 +59,7 @@ describe('the bot’s own approved outputs', () => {
       sizing: '50% of the balance per position',
       kelly: { value: '3.26% of the balance', detail: 'win rate 28.8%, loss rate 71.3%, payoff 2.80 (average win +1.22%, average loss -0.43%)', usable: true },
       storedAs: 1,
-      parameters: 'depth=23 deviation=1 moving-count=2',
+      parameters: 'length=23 spread=1 lines=2',
     })
     const before = parseBacktest(realBacktest)
     expect(before.ok && before.value).toMatchObject({ sizing: null, kelly: null, storedAs: null })
@@ -92,14 +92,14 @@ describe('the bot’s own approved outputs', () => {
     const catalog = parseStrategyCatalog(realStrategiesJson)
     expect(catalog.ok).toBe(true)
     if (!catalog.ok) return
-    const [drcs] = catalog.value
-    expect(drcs).toMatchObject({ name: 'drcs', title: 'Double Red Cross', defaultMarket: { symbol: 'XAUUSD', interval: '1h' } })
-    expect(drcs?.parameters).toEqual([
-      { name: 'depth', default: 23, min: 1, max: 500, meaning: 'Lookback of the EMA and ATR the envelope is built from', whole: true },
-      { name: 'deviation', default: 1, min: 1, max: 20, meaning: 'ATR multiplier between neighbouring bands', whole: true },
-      { name: 'moving-count', default: 2, min: 1, max: 10, meaning: 'Number of bands on each side of the center', whole: true },
+    const [sample] = catalog.value
+    expect(sample).toMatchObject({ name: 'sample', title: 'Sample bands', defaultMarket: { symbol: 'XAUUSD', interval: '1h' } })
+    expect(sample?.parameters).toEqual([
+      { name: 'length', default: 23, min: 1, max: 500, meaning: 'Candles the EMA averages', whole: true },
+      { name: 'spread', default: 1, min: 1, max: 20, meaning: 'Tenths of a percent between neighbouring bands', whole: true },
+      { name: 'lines', default: 2, min: 1, max: 10, meaning: 'Bands on each side of the EMA', whole: true },
     ])
-    expect(drcs?.rules).toEqual({ defaults: ['open long on cross up lower 1', 'close long on cross down lower 1'], syntax: 'open|close long|short on cross up|down lower|upper N' })
+    expect(sample?.rules).toEqual({ defaults: ['open long on cross up below 1', 'close long on cross down below 1'], syntax: 'open|close long|short on cross up|down below|above N' })
   })
 
   it('says why a catalog of the wrong shape cannot be read, instead of guessing', () => {
@@ -111,16 +111,16 @@ describe('the bot’s own approved outputs', () => {
     const catalog = parseStrategyCatalog(legacyStrategies)
     expect(catalog.ok).toBe(true)
     if (!catalog.ok) return
-    const [drcs] = catalog.value
-    expect(drcs).toMatchObject({ name: 'drcs', title: 'Double Red Cross', defaultMarket: { symbol: 'XAUUSD', interval: '1h' } })
-    expect(drcs?.description).toMatch(/^Builds an adaptive envelope/)
-    expect(drcs?.parameters).toEqual([
-      { name: 'depth', default: 23, min: 1, max: 500, meaning: 'Lookback of the EMA and ATR the envelope is built from', whole: true },
-      { name: 'deviation', default: 1, min: 1, max: 20, meaning: 'ATR multiplier between neighbouring bands', whole: true },
-      { name: 'moving-count', default: 2, min: 1, max: 10, meaning: 'Number of bands on each side of the center', whole: true },
-      { name: 'trigger', default: 1, min: 1, max: 10, meaning: 'Which lower band (1 = nearest the center) triggers signals', whole: true },
+    const [sample] = catalog.value
+    expect(sample).toMatchObject({ name: 'sample', title: 'Sample bands', defaultMarket: { symbol: 'XAUUSD', interval: '1h' } })
+    expect(sample?.description).toMatch(/^A made-up strategy/)
+    expect(sample?.parameters).toEqual([
+      { name: 'length', default: 23, min: 1, max: 500, meaning: 'Candles the EMA averages', whole: true },
+      { name: 'spread', default: 1, min: 1, max: 20, meaning: 'Tenths of a percent between neighbouring bands', whole: true },
+      { name: 'lines', default: 2, min: 1, max: 10, meaning: 'Bands on each side of the EMA', whole: true },
+      { name: 'trigger', default: 1, min: 1, max: 10, meaning: 'Which band below the EMA (1 = nearest it) triggers signals', whole: true },
     ])
-    expect(drcs?.rules).toBeNull()
+    expect(sample?.rules).toBeNull()
   })
 
   it('reads the market table, with "none" and "–" cells', () => {
@@ -168,44 +168,41 @@ describe('answers from the mock bot', () => {
     expect(sync.ok && sync.value.length).toBe(2)
   })
 
-  it('candles, indicators and the oldest candle', async () => {
+  it('candles and the oldest candle', async () => {
     const candles = parseCandles(await run('candles', 'show', 'XAUUSD', '1h', '--last', '30'))
     expect(candles.ok && candles.value.length).toBe(30)
     if (candles.ok) expect(candles.value[0]!.time).toBeLessThan(candles.value[29]!.time)
     const empty = parseCandles(await run('candles', 'show', 'NOPE', '1h'))
     expect(empty.ok && empty.value).toEqual([])
-    const indicators = parseIndicators(await run('indicators', 'show', 'XAUUSD', '1h', '--depth', '30', '--last', '10'))
-    expect(indicators.ok && indicators.value.depth).toBe(30)
-    expect(indicators.ok && indicators.value.rows.length).toBe(10)
     const oldest = parseOldestCandle(await run('candles', 'oldest', 'XAUUSD', '1h'))
     expect(oldest.ok && oldest.value.broker).toBe('cTrader')
   })
 
   it('strategies --json, signal and backtest, with the default rules and with others', async () => {
     const catalog = parseStrategyCatalog(await run('strategies', '--json'))
-    expect(catalog.ok && catalog.value[0]?.rules?.syntax).toBe('open|close long|short on cross up|down lower|upper N')
-    const signal = parseSignal(await run('signal', 'drcs', '--symbol', 'XAUUSD', '--interval', '1h', '-d'))
-    expect(signal.ok && signal.value).toMatchObject({ strategy: 'drcs', market: 'XAUUSD 1h', parameters: 'depth=23 deviation=1 moving-count=2', rules: ['open long on cross up lower 1', 'close long on cross down lower 1'] })
-    expect(signal.ok && signal.value.values.map((v) => v.name)).toEqual(['open', 'close', 'EMA(23)', 'ATR(23)', 'lower 1'])
-    const report = parseBacktest(await run('backtest', 'drcs', '--symbol', 'XAUUSD', '--interval', '1h', '--set', 'depth=30', '--rule', 'open short on cross down upper 2', '--rule', 'close short on cross up upper 2', '-d', '--balance', '5000'))
+    expect(catalog.ok && catalog.value[0]?.rules?.syntax).toBe('open|close long|short on cross up|down below|above N')
+    const signal = parseSignal(await run('signal', 'sample', '--symbol', 'XAUUSD', '--interval', '1h', '-d'))
+    expect(signal.ok && signal.value).toMatchObject({ strategy: 'sample', market: 'XAUUSD 1h', parameters: 'length=20 spread=3 lines=2', rules: ['open long on cross up below 1', 'close long on cross down below 1'] })
+    expect(signal.ok && signal.value.values.map((v) => v.name)).toEqual(['open', 'close', 'EMA(20)', 'below 1'])
+    const report = parseBacktest(await run('backtest', 'sample', '--symbol', 'XAUUSD', '--interval', '1h', '--set', 'length=30', '--rule', 'open short on cross down above 2', '--rule', 'close short on cross up above 2', '-d', '--balance', '5000'))
     expect(report.ok && report.value.initialBalance).toBe(5000)
-    expect(report.ok && report.value).toMatchObject({ parameters: 'depth=30 deviation=1 moving-count=2', rules: ['open short on cross down upper 2', 'close short on cross up upper 2'] })
+    expect(report.ok && report.value).toMatchObject({ parameters: 'length=30 spread=3 lines=2', rules: ['open short on cross down above 2', 'close short on cross up above 2'] })
   })
 
   it('sizes backtests and sessions as --sizing says, Kelly from a stored full-history backtest', async () => {
     const catalog = parseStrategyCatalog(await run('strategies', '--json'))
     expect(catalog.ok && catalog.value[0]?.sizing?.methods.map((m) => m.name)).toEqual(['percent', 'fixed', 'kelly'])
-    const fixed = parseBacktest(await run('backtest', 'drcs', '-d', '--sizing', 'fixed:500'))
+    const fixed = parseBacktest(await run('backtest', 'sample', '-d', '--sizing', 'fixed:500'))
     expect(fixed.ok && fixed.value.sizing).toBe('500.00 per position')
     const id = fixed.ok ? fixed.value.storedAs! : NaN
-    const edge = ['--rule', 'open long on cross up lower 2', '--rule', 'close long on cross down lower 1']
-    const started = await run('trading', 'start', 'drcs', '-d', ...edge, '--sizing', 'kelly:50', '--name', 'kelly')
+    const edge = ['--rule', 'open long on cross up below 2', '--rule', 'close long on cross down below 1']
+    const started = await run('trading', 'start', 'sample', '-d', ...edge, '--sizing', 'kelly:50', '--name', 'kelly')
     expect(started.exitCode, started.error?.message).toBe(0)
     expect(notices(started).other.join(' ')).toMatch(new RegExp(`Position sizing: Kelly, 50% of [\\d.]+% = [\\d.]+% of the balance per position, from backtest #${id + 1} `))
     const snapshot = parseSession(await run('session', '--json'))
     const kelly = snapshot.ok ? snapshot.value.strategies.find((x) => x.name === 'kelly')?.sizing : null
     expect(kelly).toMatchObject({ method: 'Kelly', kelly: { shareOfKelly: 50, backtestId: id + 1 } })
-    const refused = await run('trading', 'start', 'drcs', '-d', '--sizing', 'kelly')
+    const refused = await run('trading', 'start', 'sample', '-d', '--sizing', 'kelly')
     expect(refused.exitCode).toBe(1)
     // The default rules' full-history backtest is the fixed-amount one run above: it is read, not run again.
     expect(refused.error?.message).toMatch(new RegExp(`^Kelly sizing cannot use backtest #${id}: .*\\. Choose --sizing percent:N or fixed:AMOUNT, or change the rules\\.$`))
@@ -214,9 +211,9 @@ describe('answers from the mock bot', () => {
   })
 
   it('a rule the strategy cannot have fails with the bot’s message', async () => {
-    const failed = await run('backtest', 'drcs', '-d', '--rule', 'open long on cross up lower 3')
+    const failed = await run('backtest', 'sample', '-d', '--rule', 'open long on cross up below 3')
     expect(failed.exitCode).toBe(1)
-    expect(failed.error?.message).toBe("Rule 'open long on cross up lower 3': lower 3 is not a band of the envelope: it has bands 1 to 2 on each side.")
+    expect(failed.error?.message).toBe("Rule 'open long on cross up below 3': below 3 is not a band: there are bands 1 to 2 on each side.")
   })
 
   it('orders and actions', async () => {
@@ -231,7 +228,7 @@ describe('answers from the mock bot', () => {
   })
 
   it('a missing market fails with the bot’s hint', async () => {
-    const failed = await run('backtest', 'drcs', '-d', '--symbol', 'NOPE')
+    const failed = await run('backtest', 'sample', '-d', '--symbol', 'NOPE')
     expect(failed.exitCode).toBe(1)
     expect(failed.error?.hint).toBe('Add it with: market add NOPE 1h')
   })
@@ -248,7 +245,6 @@ const PARSERS: [RegExp, (result: CommandResult) => { ok: boolean }][] = [
   [/^orders list/, parseOrders],
   [/^candles show /, parseCandles],
   [/^candles oldest /, parseOldestCandle],
-  [/^indicators show /, parseIndicators],
   [/^signal /, parseSignal],
   [/^backtest /, parseBacktest],
 ]

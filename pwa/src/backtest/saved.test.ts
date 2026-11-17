@@ -9,7 +9,7 @@ let connection = ''
 let n = 0
 
 const run = (at: number): DeviceRun => ({
-  kind: 'device', id: `run-${at}`, at, input: { strategy: 'drcs', symbol: 'XAUUSD', interval: '1h', params: {} }, balance: 1000, from: null, to: null,
+  kind: 'device', id: `run-${at}`, at, input: { strategy: 'sample', symbol: 'XAUUSD', interval: '1h', params: {} }, balance: 1000, from: null, to: null,
   scenarios: 3, method: 'Bootstrap', result: keep(deviceAnswer()), monteCarlo: keepScenarios(deviceAnswer(), scenariosAnswer(), summaryAnswer().summary),
 })
 

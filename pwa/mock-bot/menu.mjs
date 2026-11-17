@@ -23,11 +23,12 @@ export const sessionNameOf = (name) => {
 }
 
 /** `clientOf(login)`: the client id a person signs in for, or null. */
-export function createMenu({ clientOf, now = () => Date.now() }) {
+/** `sees(person)`: whether they see how a strategy trades; a client the fund does not trust reads setups by name only. */
+export function createMenu({ clientOf, sees = () => true, now = () => Date.now() }) {
   const at = () => new Date(now()).toISOString().replace(/\.\d+Z$/, 'Z')
   const setups = [
-    { id: 1, name: 'Gold trend, steady', description: 'Buys gold when it dips inside a rising trend and sells into strength. Loses in sideways weeks, when the dips keep going.', risk: 'steady', strategy: 'drcs', market: 'XAUUSD 1h', parameters: { depth: 23, deviation: 1, 'moving-count': 2 }, rules: ['open long on cross down lower 2', 'close long on cross up upper 2'], sizing: 'percent:25', backtestId: null, withdrawn: false, createdAt: '2026-11-02T10:00:00Z' },
-    { id: 2, name: 'Euro range, careful', description: 'Trades the euro back and forth inside its usual range, with small positions. Loses when the euro breaks out of the range.', risk: 'careful', strategy: 'drcs', market: 'EURUSD 4h', parameters: { depth: 30, deviation: 1, 'moving-count': 2 }, rules: ['open long on cross down lower 1', 'close long on cross up upper 1'], sizing: 'percent:10', backtestId: null, withdrawn: false, createdAt: '2026-11-03T10:00:00Z' },
+    { id: 1, name: 'Gold trend, steady', description: 'Buys gold when it dips inside a rising trend and sells into strength. Loses in sideways weeks, when the dips keep going.', risk: 'steady', strategy: 'sample', market: 'XAUUSD 1h', parameters: { length: 20, spread: 1, lines: 2 }, rules: ['open long on cross down below 2', 'close long on cross up above 2'], sizing: 'percent:25', backtestId: null, withdrawn: false, createdAt: '2026-11-02T10:00:00Z' },
+    { id: 2, name: 'Euro range, careful', description: 'Trades the euro back and forth inside its usual range, with small positions. Loses when the euro breaks out of the range.', risk: 'careful', strategy: 'sample', market: 'EURUSD 4h', parameters: { length: 30, spread: 1, lines: 2 }, rules: ['open long on cross down below 1', 'close long on cross up above 1'], sizing: 'percent:10', backtestId: null, withdrawn: false, createdAt: '2026-11-03T10:00:00Z' },
   ]
   const limits = new Map([[1, { client: 1, setups: [1, 2], maxBudget: null, maxBudgetPercent: 40, maxSessions: 2, liveAllowed: false, updatedAt: '2026-11-03T11:00:00Z' }]])
 
@@ -55,6 +56,12 @@ export function createMenu({ clientOf, now = () => Date.now() }) {
   return {
     sessionNameOf,
 
+    /** A setup by its id, with its parameters and rules as one line (StrategySetup.Describe), or null. */
+    setup(id) {
+      const s = setups.find((setup) => setup.id === id)
+      return s ? { ...s, describe: `${Object.entries(s.parameters).map(([k, v]) => `${k}=${v}`).join(' ')}, rules: ${s.rules.join('; ')}` } : null
+    },
+
     run(args, person) {
       const asJson = args.includes('--json')
       if (args[0] === 'clients' && args[1] === 'limits') return this.limits(args)
@@ -63,6 +70,7 @@ export function createMenu({ clientOf, now = () => Date.now() }) {
           const client = person?.role === 'client' ? clientOf(person.login) : null
           const allowed = person?.role === 'client' ? (limits.get(client)?.setups ?? []) : null
           const list = setups.filter((s) => (allowed ? allowed.includes(s.id) && !s.withdrawn : args.includes('--all') || !s.withdrawn))
+            .map((s) => (sees(person) ? s : { ...s, strategy: '', parameters: {}, rules: [] }))
           return answer(list, list.map((s) => `${s.id} ${s.name}`).join('\n') || 'The menu is empty.', asJson)
         }
         case 'add': {
@@ -74,7 +82,7 @@ export function createMenu({ clientOf, now = () => Date.now() }) {
           if (!RISKS.includes(risk)) return failed(`'${risk}' is not a risk: careful, steady, bold.`)
           if (!symbol || !interval) return failed('Give --symbol and --interval: a setup trades one market.')
           const parameters = Object.fromEntries(options(args, '--set').map((p) => p.split('=')).map(([k, v]) => [k, Number(v)]))
-          const setup = { id: setups.length + 1, name, description, risk, strategy: args[2] ?? 'drcs', market: `${symbol.toUpperCase()} ${interval}`, parameters, rules: options(args, '--rule'),
+          const setup = { id: setups.length + 1, name, description, risk, strategy: args[2] ?? 'sample', market: `${symbol.toUpperCase()} ${interval}`, parameters, rules: options(args, '--rule'),
             sizing: option(args, '--sizing') ?? 'percent:50', backtestId: option(args, '--backtest') ? Number(option(args, '--backtest')) : null, withdrawn: false, createdAt: at() }
           setups.push(setup)
           return answer(setup, `Added menu setup ${setup.id}: ${name} (${risk}), ${setup.strategy} on ${setup.market}, ${setup.sizing}.`, asJson)

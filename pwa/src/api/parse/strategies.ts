@@ -100,7 +100,7 @@ export function parseStrategyCatalog(result: CommandResult): Parsed<StrategyDefi
 }
 
 /**
- * `strategies` of a bot without rules: one panel per strategy titled "drcs – Double Red Cross" (en dash), holding
+ * `strategies` of a bot without rules: one panel per strategy titled "sample – Sample bands" (en dash), holding
  * the description, "Default market: XAUUSD 1h" and a Parameter / Default / Range / Meaning table, the range written
  * "1–500". The bot does not print whether a parameter is a whole number; integer bounds and default mean it is.
  */
@@ -149,7 +149,7 @@ export type SignalReading = {
   share: number | null
   signalText: string
   reason: string
-  /** "depth=23 deviation=1 …" */
+  /** "length=20 spread=3 …" */
   parameters: string | null
   /** The rules it decided by, in order (a bot without rules: none). */
   rules: string[]
@@ -172,7 +172,7 @@ export function readSignal(text: string): Pick<SignalReading, 'action' | 'side' 
   return { action: 'none', side: null, share: null }
 }
 
-/** "depth=23 deviation=1 moving-count=2, rules: open long on …; close long on …": the parameters, and the rules. */
+/** "length=20 spread=3 lines=2, rules: open long on …; close long on …": the parameters, and the rules. */
 export function readStrategyLine(line: string | null): { parameters: string | null; rules: string[] } {
   if (!line) return { parameters: null, rules: [] }
   const at = line.indexOf(', rules: ')
@@ -258,7 +258,7 @@ export function readKelly(text: string): KellyReading {
 }
 
 /**
- * `backtest`: a panel "Backtest: drcs on XAUUSD 1h" whose grid has Period, Balance, Profit / loss, Trades, [Sizing,
+ * `backtest`: a panel "Backtest: sample on XAUUSD 1h" whose grid has Period, Balance, Profit / loss, Trades, [Sizing,
  * Kelly], Average per trade, Best trade, Max drawdown, [Still open], Computed in; then the parameters line and, from a
  * bot that stores backtests, "Stored as backtest #N; …".
  * Amounts carry no currency (the simulated account has none).
@@ -312,7 +312,7 @@ export function parseBacktest(result: CommandResult): Parsed<BacktestReport> {
   })
 }
 
-/** Parameters echoed as "depth=23 deviation=1 moving-count=2" (the part before ", rules:"). */
+/** Parameters echoed as "length=20 spread=3 lines=2" (the part before ", rules:"). */
 export function readParameterLine(line: string | null): Record<string, number> {
   const values: Record<string, number> = {}
   for (const part of (line ?? '').split(/\s+/)) {

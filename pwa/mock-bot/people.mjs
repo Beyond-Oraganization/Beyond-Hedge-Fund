@@ -21,7 +21,7 @@ const PEOPLE = () => [
 ]
 
 // The real bot's table: each command's lowest role (client < staff < owner); one it does not know is the owner's alone.
-const BRANCHES = new Set(['market', 'candles', 'indicators', 'trading', 'orders', 'people', 'fund', 'clients', 'cashflows', 'menu'])
+const BRANCHES = new Set(['market', 'candles', 'indicators', 'trading', 'orders', 'people', 'fund', 'clients', 'cashflows', 'menu', 'published'])
 const RANK = { client: 0, staff: 1, owner: 2 }
 const RULES = {
   help: 'client', me: 'client', signin: 'client', signout: 'client', portfolio: 'client', activity: 'client', statement: 'client',
@@ -34,8 +34,13 @@ const RULES = {
   'trading minimum': 'staff', 'orders place': 'staff', 'orders close': 'staff',
   'fund accounts': 'staff', 'fund overview': 'staff', 'cashflows list': 'staff', 'cashflows add': 'staff', 'clients list': 'staff', 'clients add': 'staff', 'clients link': 'staff', 'clients unlink': 'staff',
   register: 'owner', credentials: 'owner', 'market remove': 'owner', 'orders clear': 'owner', 'fund manage': 'owner', 'fund unmanage': 'owner',
+  'strategies bundle': 'staff', 'published list': 'client', 'published add': 'staff', 'published update': 'staff', 'published delete': 'staff',
 }
-const PEOPLE_COMMANDS = ['list', 'add', 'role', 'disable', 'enable', 'reset-code', 'reset-password']
+// Staff commands a client the owner trusts (people trust) may run too: the strategy pack and what a backtest on a device reads.
+const TRUSTED = new Set(['strategies', 'strategies bundle', 'market list', 'candles show', 'candles export', 'candles oldest'])
+/** Whether the person sees how a strategy trades (PersonRoles.SeesStrategies): staff, the owner, a client the fund trusts. */
+export const seesStrategies = (person) => !person || person.role !== 'client' || Boolean(person.trusted)
+const PEOPLE_COMMANDS = ['list', 'add', 'role', 'trust', 'disable', 'enable', 'reset-code', 'reset-password']
 for (const command of PEOPLE_COMMANDS) RULES[`people ${command}`] = 'owner'
 
 function key(args) {
@@ -43,6 +48,7 @@ function key(args) {
   if (first === undefined) return null
   if (['--help', '-h', '--version', '-v', 'help'].includes(first)) return 'help'
   if (first === 'session' && second === 'strategies') return 'session strategies'
+  if (first === 'strategies' && second === 'bundle') return 'strategies bundle'
   if (!BRANCHES.has(first)) return first
   return second !== undefined && !second.startsWith('-') ? `${first} ${second}` : 'help'
 }
@@ -65,6 +71,7 @@ export function createPeople() {
 
   const view = (person, session) => ({
     via: 'person', login: person.login, name: person.name, email: person.email, role: person.role, device: session?.device ?? null, endsAt: session?.endsAt ?? null,
+    trusted: seesStrategies(person),
   })
 
   return {
@@ -94,6 +101,8 @@ export function createPeople() {
         }
         if (!given) return `A client starts strategies from the fund's menu: ${usage}.`
       }
+      if (person.role === 'client' && TRUSTED.has(k))
+        return person.trusted ? null : `Only the fund's staff, owner and the clients it trusts with its strategies can run '${k}'.`
       const lowest = RULES[k]
       if (lowest && RANK[person.role] >= RANK[lowest]) return null
       if (!lowest) return `'${k ?? args[0]}' is not a command you can run.`
@@ -107,7 +116,7 @@ export function createPeople() {
     manage(args) {
       const asJson = args.includes('--json')
       const view = (p) => ({ login: p.login, name: p.name, email: p.email, role: p.role, mustChangePassword: p.mustChange, codeSet: p.codeSet, disabled: Boolean(p.disabled),
-        createdAt: p.createdAt ?? '2026-11-01T09:00:00Z', sessions: [...tokens.values()].filter((t) => t.login === p.login).length })
+        createdAt: p.createdAt ?? '2026-11-01T09:00:00Z', sessions: [...tokens.values()].filter((t) => t.login === p.login).length, trusted: seesStrategies(p) })
       const signOut = (login) => { for (const [token, session] of tokens) if (session.login === login) tokens.delete(token) }
       const sub = args[1]
       if (sub === 'list') return answer(people.map(view), people.map((p) => `${p.login} ${p.role}`).join('\n'), asJson)
@@ -133,8 +142,18 @@ export function createPeople() {
           const role = args[3]
           if (!role) return failed('Give the role: people role <LOGIN> owner|staff|client.')
           if (!['owner', 'staff', 'client'].includes(role)) return failed(`'${role}' is not a role: owner, staff or client.`)
+          person.trusted = person.role === role && Boolean(person.trusted)
           person.role = role
           return answer(null, `${login} is now ${role}.`, false)
+        }
+        case 'trust': {
+          const value = args[3]?.toLowerCase()
+          if (value !== 'on' && value !== 'off') return failed('Give on or off: people trust <LOGIN> on|off.')
+          if (person.role !== 'client') return failed(`${login} is ${person.role}: staff and the owner have the strategies by their role. Trust is for clients.`)
+          person.trusted = value === 'on'
+          return answer(null, person.trusted
+            ? `${login} is trusted: from their next request they get the strategies' code, can backtest, and see how a strategy trades.`
+            : `${login} is no longer trusted: from their next request they choose setups by name only. A copy of the strategies they fetched before stays on their device.`, false)
         }
         case 'disable':
           person.disabled = true

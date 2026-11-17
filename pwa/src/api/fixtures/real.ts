@@ -8,12 +8,12 @@ const base = { ok: true, exitCode: 0, elapsedMs: 41, error: null, json: null, ou
 
 export const realBacktest: CommandResult = {
   ...base,
-  command: 'backtest drcs -d --symbol BTCUSDT --to 2025-03-30T08:00:00',
+  command: 'backtest sample -d --symbol BTCUSDT --to 2025-03-30T08:00:00',
   blocks: [
     { type: 'text', text: 'Reading BTCUSDT 1h candles…' },
     {
       type: 'section',
-      title: 'Backtest: drcs on BTCUSDT 1h',
+      title: 'Backtest: sample on BTCUSDT 1h',
       blocks: [
         {
           type: 'grid',
@@ -30,7 +30,7 @@ export const realBacktest: CommandResult = {
         },
       ],
     },
-    { type: 'text', text: 'depth=23 deviation=1 moving-count=2, rules: open long on cross up lower 1; close long on cross down lower 1' },
+    { type: 'text', text: 'length=23 spread=1 lines=2, rules: open long on cross up below 1; close long on cross down below 1' },
   ],
 }
 
@@ -44,7 +44,7 @@ export const realSizedBacktest: CommandResult = {
     { type: 'text', text: 'Reading BTCUSDT 1h candles…' },
     {
       type: 'section',
-      title: 'Backtest: drcs on BTCUSDT 1h',
+      title: 'Backtest: sample on BTCUSDT 1h',
       blocks: [
         {
           type: 'grid',
@@ -65,7 +65,7 @@ export const realSizedBacktest: CommandResult = {
     },
     {
       type: 'text',
-      text: "depth=23 deviation=1 moving-count=2, rules: open long on cross up lower 1; close long on cross down lower 1\nStored as backtest #1; 'backtests' lists them. Kelly sizing of this setup reads the newest one that starts at the first stored candle.",
+      text: "length=23 spread=1 lines=2, rules: open long on cross up below 1; close long on cross down below 1\nStored as backtest #1; 'backtests' lists them. Kelly sizing of this setup reads the newest one that starts at the first stored candle.",
     },
   ],
 }
@@ -77,26 +77,26 @@ export const legacyStrategies: CommandResult = {
   blocks: [
     {
       type: 'section',
-      title: 'drcs – Double Red Cross',
+      title: 'sample – Sample bands',
       blocks: [
         {
           type: 'text',
-          text: 'Builds an adaptive envelope of bands spaced by ATR × deviation below and above the EMA. Buys half of the balance when a candle opens below the trigger band and closes above it, and closes the newest position when a candle crosses back down through it.\nDefault market: XAUUSD 1h',
+          text: 'A made-up strategy for tests and demos, not one the fund trades: bands spread tenths of a percent apart below and above the EMA of the close, below 1 and above 1 nearest it, up to lines on each side. By default it buys when a candle crosses up through below 1 and closes that long when one crosses back down.\nDefault market: XAUUSD 1h',
         },
         {
           type: 'table',
           title: null,
           columns: ['Parameter', 'Default', 'Range', 'Meaning'],
           rows: [
-            ['depth', '23', '1–500', 'Lookback of the EMA and ATR the envelope is built from'],
-            ['deviation', '1', '1–20', 'ATR multiplier between neighbouring bands'],
-            ['moving-count', '2', '1–10', 'Number of bands on each side of the center'],
-            ['trigger', '1', '1–10', 'Which lower band (1 = nearest the center) triggers signals'],
+            ['length', '23', '1–500', 'Candles the EMA averages'],
+            ['spread', '1', '1–20', 'Tenths of a percent between neighbouring bands'],
+            ['lines', '2', '1–10', 'Bands on each side of the EMA'],
+            ['trigger', '1', '1–10', 'Which band below the EMA (1 = nearest it) triggers signals'],
           ],
         },
       ],
     },
-    { type: 'text', text: 'Set a parameter with --set NAME=VALUE, e.g. backtest drcs --set depth=30.' },
+    { type: 'text', text: 'Set a parameter with --set NAME=VALUE, e.g. backtest sample --set length=30.' },
   ],
 }
 
@@ -104,7 +104,7 @@ export const realMissingMarket: CommandResult = {
   ...base,
   ok: false,
   exitCode: 1,
-  command: 'backtest drcs -d --symbol NOPE',
+  command: 'backtest sample -d --symbol NOPE',
   blocks: [],
   error: { message: 'NOPE 1h is not set up.', hint: 'Add it with: market add NOPE 1h' },
   output: '✗ NOPE 1h is not set up.\n  Add it with: market add NOPE 1h\n',
@@ -143,18 +143,18 @@ export const realStrategiesJson: CommandResult = {
   blocks: [],
   json: [
     {
-      name: 'drcs',
-      title: 'Double Red Cross',
+      name: 'sample',
+      title: 'Sample bands',
       description:
-        'Builds an adaptive envelope of bands spaced by ATR × deviation below and above the EMA: lower 1 and upper 1 are nearest the center, up to moving-count on each side. Its rules trade on candles crossing those bands, and each open spends half of the balance. By default it buys when a candle opens below lower 1 and closes above it, and closes the newest long when a candle crosses back down through it.',
+        'A made-up strategy for tests and demos, not one the fund trades: bands spread tenths of a percent apart below and above the EMA of the close, below 1 and above 1 nearest it, up to lines on each side. By default it buys when a candle crosses up through below 1 and closes that long when one crosses back down.',
       symbol: 'XAUUSD',
       interval: '1h',
       parameters: [
-        { name: 'depth', description: 'Lookback of the EMA and ATR the envelope is built from', default: 23, minimum: 1, maximum: 500, wholeNumber: true },
-        { name: 'deviation', description: 'ATR multiplier between neighbouring bands', default: 1, minimum: 1, maximum: 20, wholeNumber: true },
-        { name: 'moving-count', description: 'Number of bands on each side of the center', default: 2, minimum: 1, maximum: 10, wholeNumber: true },
+        { name: 'length', description: 'Candles the EMA averages', default: 23, minimum: 1, maximum: 500, wholeNumber: true },
+        { name: 'spread', description: 'Tenths of a percent between neighbouring bands', default: 1, minimum: 1, maximum: 20, wholeNumber: true },
+        { name: 'lines', description: 'Bands on each side of the EMA', default: 2, minimum: 1, maximum: 10, wholeNumber: true },
       ],
-      rules: { defaults: ['open long on cross up lower 1', 'close long on cross down lower 1'], syntax: 'open|close long|short on cross up|down lower|upper N' },
+      rules: { defaults: ['open long on cross up below 1', 'close long on cross down below 1'], syntax: 'open|close long|short on cross up|down below|above N' },
     },
   ],
 }

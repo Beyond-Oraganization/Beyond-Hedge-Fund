@@ -47,6 +47,7 @@ const RESEARCH: NavSection = {
     { to: '/markets', label: 'Markets' },
     { to: '/backtest', label: 'Backtest' },
     { to: '/strategies', label: 'Strategies' },
+    { to: '/published', label: 'Published' },
   ],
 }
 
@@ -63,12 +64,23 @@ const ADMIN_ITEMS: (NavItem & { ownerOnly?: boolean })[] = [
   { to: '/install', label: 'Install the app' },
 ]
 
+/** What a client the fund trusts with its strategies adds: backtests on their device, and how a strategy's rules read. */
+const TRUSTED_RESEARCH: NavSection = {
+  id: 'research',
+  label: 'Research',
+  icon: 'markets',
+  items: [
+    { to: '/backtest', label: 'Backtest' },
+    { to: '/strategies', label: 'Strategies' },
+  ],
+}
+
 /**
  * The sections a role sees, in order. `person` is a person's own sign-in (not the API key), which adds their sign-in page
- * to Admin.
+ * to Admin. `trusted` is a client the fund trusts with its strategies (`me --json`): they backtest too.
  */
-export function sectionsFor(role: Role, { person = false } = {}): NavSection[] {
-  if (role === 'client') return CLIENT
+export function sectionsFor(role: Role, { person = false, trusted = false } = {}): NavSection[] {
+  if (role === 'client') return trusted ? [...CLIENT.slice(0, 2), TRUSTED_RESEARCH, ...CLIENT.slice(2)] : CLIENT
   const admin = ADMIN_ITEMS.filter((item) => role === 'owner' || !item.ownerOnly).map(({ to, label }) => ({ to, label }))
   return [OVERVIEW, TRADING, CLIENTS, RESEARCH, { id: 'admin', label: 'Admin', icon: 'settings', items: person ? [YOUR_SIGN_IN, ...admin] : admin }]
 }

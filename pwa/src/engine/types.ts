@@ -113,7 +113,7 @@ export type DeviceBacktest = {
   engine: string
   strategy: string
   market: { symbol: string; interval: string }
-  /** "depth=23 deviation=1 moving-count=2, rules: …", the bot's setup line. */
+  /** "length=20 spread=3 lines=2, rules: …", the bot's setup line. */
   setup: string
   parameters: Record<string, number>
   rules: string[]
@@ -150,6 +150,11 @@ export type DeviceBacktest = {
 }
 
 export type EngineFailure = { ok: false; engine: string; error: { message: string } }
+
+/** The price levels a strategy's rules compare candles with (Core/Backtesting/BacktestEngine.cs Levels), times in Unix seconds. */
+export type DeviceLevels = { ok: true; engine: string; strategy: string; lines: { name: string; points: { time: number; value: number }[] }[] }
+
+export type LevelsAnswer = DeviceLevels | EngineFailure
 
 export type EngineAnswer = DeviceBacktest | EngineFailure
 

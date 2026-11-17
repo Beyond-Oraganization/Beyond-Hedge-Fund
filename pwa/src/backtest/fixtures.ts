@@ -21,9 +21,9 @@ export const scenarioResult = (scenario: number, final: number): ScenarioResult 
 /** An engine answer as BacktestEngine.cs writes it: two trades, the second closed on the first's candle. */
 export function deviceAnswer(overrides: Partial<DeviceBacktest> = {}): DeviceBacktest {
   return {
-    ok: true, engine: '2.2.0', strategy: 'drcs', market: { symbol: 'XAUUSD', interval: '1h' },
-    setup: 'depth=23 deviation=1 moving-count=2, rules: open long on cross up lower 1; close long on cross down lower 1',
-    parameters: { depth: 23, deviation: 1, 'moving-count': 2 }, rules: ['open long on cross up lower 1', 'close long on cross down lower 1'],
+    ok: true, engine: '2.2.0', strategy: 'sample', market: { symbol: 'XAUUSD', interval: '1h' },
+    setup: 'length=23 spread=1 lines=2, rules: open long on cross up below 1; close long on cross down below 1',
+    parameters: { length: 23, spread: 1, lines: 2 }, rules: ['open long on cross up below 1', 'close long on cross down below 1'],
     start: '2025-01-06T00:00:00Z', end: '2025-01-10T04:00:00Z', candles: 100,
     sizing: { method: 'Percent', value: 50, kelly: null },
     kelly: { trades: 2, wins: 1, losses: 1, averageWin: 0.02, averageLoss: 0.01, winProbability: 0.5, lossProbability: 0.5, payoffRatio: 2, percent: 25, whyUnusable: 'only 2 closed trades (it needs at least 20)' },

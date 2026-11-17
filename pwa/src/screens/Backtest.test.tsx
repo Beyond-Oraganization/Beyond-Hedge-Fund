@@ -50,6 +50,10 @@ const answer = (partial: Partial<CommandResult>) =>
   HttpResponse.json({ command: 'x', exitCode: 0, ok: true, elapsedMs: 5, output: '', blocks: [], error: null, json: null, ...partial } satisfies CommandResult)
 
 const engine: Engine = {
+  setStrategies() {},
+  async levels() {
+    return { ok: true, engine: '2.5.0', strategy: 'sample', lines: [] }
+  },
   async backtest(request, candles) {
     asked.push({ request, candles })
     return engineAnswer
@@ -110,7 +114,7 @@ describe('Backtest', () => {
 
     expect(await screen.findByRole('heading', { name: 'Monte Carlo' })).toBeInTheDocument()
     const { request, candles } = asked[0]!
-    expect(request).toMatchObject({ strategy: 'drcs', symbol: 'XAUUSD', interval: '1h', kelly: null })
+    expect(request).toMatchObject({ strategy: 'sample', symbol: 'XAUUSD', interval: '1h', kelly: null })
     expect(candles.time.length).toBeGreaterThan(1000)
     expect(candles.close.length).toBe(candles.time.length)
     expect(simulated[0]).toMatchObject({ count: 200, request: { ...request, scenarios: { method: 'Bootstrap', seed: expect.any(Number) } } })
@@ -171,7 +175,7 @@ describe('Backtest', () => {
   })
 
   it('shows a run saved before 2.2.0 with what its Monte Carlo of trades found', async () => {
-    const before = { kind: 'device', id: 'old', at: 1, input: { strategy: 'drcs', symbol: 'XAUUSD', interval: '1h', params: {} }, balance: 1000, from: null, to: null, paths: 1000,
+    const before = { kind: 'device', id: 'old', at: 1, input: { strategy: 'sample', symbol: 'XAUUSD', interval: '1h', params: {} }, balance: 1000, from: null, to: null, paths: 1000,
       result: { ...deviceAnswer(), tradeReturns: [0.02], overlappingTrades: 0, curve: [], monteCarlo: { paths: 1000, endedAboveStartPercent: 61.2 } } }
     await db.set(`backtests:backtest-${n + 1}`, [before])
     show()
@@ -197,11 +201,11 @@ describe('Backtest', () => {
   })
 
   it('shows the engine’s message for a request it refuses', async () => {
-    engineAnswer = { ok: false, engine: '2.2.0', error: { message: "drcs has no parameter speed. Parameters: depth, deviation, moving-count." } }
+    engineAnswer = { ok: false, engine: '2.2.0', error: { message: "sample has no parameter speed. Parameters: length, spread, lines." } }
     show()
     await run()
 
-    expect(await screen.findByText(/drcs has no parameter speed/)).toBeInTheDocument()
+    expect(await screen.findByText(/sample has no parameter speed/)).toBeInTheDocument()
   })
 
   it('tells an older bot, which cannot hand out its candles, from a failure', async () => {

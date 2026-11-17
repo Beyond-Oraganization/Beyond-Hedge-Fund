@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { useAction, useRead } from '../../api/bot.ts'
 import { sessionName } from '../../api/session.ts'
 import type { TradingSessionState } from '../../api/types.ts'
@@ -9,6 +9,7 @@ import { Badge, Banner, Button, Card, Change, EmptyState, PageHeader } from '../
 import { ClientRead } from '../portfolio/ClientRead.tsx'
 import { inSentence, marketName, strategyName } from '../portfolio/words.ts'
 import { readBudget, readCheck, type StartCheck } from '../trading/check.ts'
+import { newestBySetup, testedWords, usePublished, type PublishedBacktest } from '../published/published.ts'
 import { riskWord, sizingWords, useMenu, useMySessions, type MenuSetup } from './menu.ts'
 
 /** "7 Nov" (UTC). */
@@ -188,8 +189,11 @@ function AddForm({ setup, onDone }: { setup: MenuSetup; onDone: (text: string) =
   )
 }
 
-/** A setup of the menu, as a client reads it: its name, risk and description, and how it sizes; Choose opens the budget. */
-function Offer({ setup, chosen, onChoose, onDone }: { setup: MenuSetup; chosen: boolean; onChoose: () => void; onDone: (text: string) => void }) {
+/**
+ * A setup of the menu, as a client reads it: its name, risk and description, how it sizes, and how the fund tested it (its
+ * newest published backtest); Choose opens the budget.
+ */
+function Offer({ setup, tested, chosen, onChoose, onDone }: { setup: MenuSetup; tested: PublishedBacktest | undefined; chosen: boolean; onChoose: () => void; onDone: (text: string) => void }) {
   return (
     <li className="k-strategy">
       <div className="k-row k-strategy-head">
@@ -198,6 +202,12 @@ function Offer({ setup, chosen, onChoose, onDone }: { setup: MenuSetup; chosen: 
       </div>
       <p>{setup.description}</p>
       <p className="k-hint">{sizingWords(setup.sizing)}.</p>
+      {tested ? (
+        <p className="k-hint">
+          <strong>{tested.title}.</strong> {testedWords(tested)}
+          {tested.note ? ` ${tested.note}` : ''}
+        </p>
+      ) : null}
       {chosen ? (
         <AddForm setup={setup} onDone={onDone} />
       ) : (
@@ -218,6 +228,8 @@ function Offer({ setup, chosen, onChoose, onDone }: { setup: MenuSetup; chosen: 
 export default function ClientStrategies() {
   const sessions = useMySessions()
   const menu = useMenu()
+  const published = usePublished()
+  const tested = useMemo(() => newestBySetup(published.data?.parsed.ok ? published.data.parsed.value : []), [published.data])
   const [chosen, setChosen] = useState<number | null>(null)
   const [done, setDone] = useState<string | null>(null)
 
@@ -250,6 +262,7 @@ export default function ClientStrategies() {
                     <Offer
                       key={setup.id}
                       setup={setup}
+                      tested={tested.get(setup.id)}
                       chosen={chosen === setup.id}
                       onChoose={() => {
                         setChosen(setup.id)

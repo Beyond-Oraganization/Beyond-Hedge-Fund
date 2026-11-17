@@ -2,7 +2,7 @@ import { sessionName } from '../../api/session.ts'
 import type { TradingSessionState } from '../../api/types.ts'
 
 /**
- * A client's words for what the bot names by its own (docs/fund-app-redesign-plan.md, section 5: clients never meet "drcs"
+ * A client's words for what the bot names by its own (docs/fund-app-redesign-plan.md, section 5: clients never meet a strategy's id such as "sample"
  * or "XAUUSD"). Staff's screens keep the bot's names.
  */
 const MARKETS: Record<string, string> = {
@@ -37,7 +37,7 @@ export function menuSessionName(setupName: string): string {
   return kept.length > 40 ? kept.slice(0, 40).trimEnd() : kept || 'menu setup'
 }
 
-/** A bot strategy's id ("drcs"), as opposed to a name a person gave a session ("Gold"). */
+/** A bot strategy's id ("sample"), as opposed to a name a person gave a session ("Gold"). */
 const looksLikeId = (name: string) => /^[a-z0-9-]+$/.test(name)
 
 /** A strategy the fund started for the client, outside the menu, with only the bot's name. */
@@ -59,7 +59,7 @@ export function strategyName(session: Pick<TradingSessionState, 'name' | 'strate
 
 /**
  * The bot's activity line in a client's words: "Closed XAUUSD buy 2 at a gain of 84.10" → "Closed a Gold trade" (the list
- * shows the gain beside it, with its arrow); "Strategy started: drcs, Gold" → "Strategy started: Gold". Anything else stays
+ * shows the gain beside it, with its arrow); "Strategy started: sample, Gold" → "Strategy started: Gold". Anything else stays
  * as the bot wrote it.
  */
 export function plainActivity(text: string): string {

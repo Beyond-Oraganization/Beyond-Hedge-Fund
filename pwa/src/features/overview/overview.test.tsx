@@ -46,7 +46,7 @@ function show() {
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 beforeEach(() => {
   clients = createClients(createPeople().roleOf)
-  sessions = [{ name: 'drcs', key: 'XAUUSD 1h', lastTick: null }]
+  sessions = [{ name: 'sample', key: 'XAUUSD 1h', lastTick: null }]
   failure = null
 })
 afterEach(() => {

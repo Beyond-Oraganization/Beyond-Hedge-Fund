@@ -89,7 +89,7 @@ describe('a month’s statement', () => {
   })
 
   it('lists the positions closed by strategy, the deposits and the strategies started', async () => {
-    change = (json) => ({ ...json, accounts: [{ ...account(json), events: [{ at: '2026-10-03T08:00:00Z', text: 'Strategy started: drcs, Gold' }], cashFlows: [{ at: '2026-10-20T09:00:00Z', amount: 2000, note: 'Second transfer' }] }] })
+    change = (json) => ({ ...json, accounts: [{ ...account(json), events: [{ at: '2026-10-03T08:00:00Z', text: 'Strategy started: sample, Gold' }], cashFlows: [{ at: '2026-10-20T09:00:00Z', amount: 2000, note: 'Second transfer' }] }] })
     show(`/me/statements/${month(1)}`)
 
     const strategies = await screen.findByRole('region', { name: 'strategies' })
@@ -97,7 +97,7 @@ describe('a month’s statement', () => {
     expect(within(strategies).getAllByText('Placed by the fund').length).toBeGreaterThan(0)
     expect(screen.getByRole('region', { name: 'closed positions' })).toBeTruthy()
     expect(within(screen.getByRole('region', { name: 'deposits and withdrawals' })).getByText('Deposit: Second transfer')).toBeTruthy()
-    expect(within(screen.getByRole('region', { name: 'strategies started and stopped' })).getByText('Strategy started: drcs, Gold')).toBeTruthy()
+    expect(within(screen.getByRole('region', { name: 'strategies started and stopped' })).getByText('Strategy started: sample, Gold')).toBeTruthy()
   })
 
   it('says the month under way is so far', async () => {

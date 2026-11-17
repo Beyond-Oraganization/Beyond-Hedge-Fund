@@ -16,7 +16,7 @@ group('describe (port of CommandRunnerTests.Describe_HidesSecrets)', () => {
 })
 
 group('refusal (port of CommandRunner.Refusal)', () => {
-  it.each([[['ui']], [['UI']], [['exit']], [['quit']], [['shell']], [['serve']], [['run', 'drcs', '-d']], [['session', '--watch']], [['balance', '-w', '5']], [['positions', '--watch=3']], [[]]])(
+  it.each([[['ui']], [['UI']], [['exit']], [['quit']], [['shell']], [['serve']], [['run', 'sample', '-d']], [['session', '--watch']], [['balance', '-w', '5']], [['positions', '--watch=3']], [[]]])(
     'refuses %j',
     (args) => expect(refusal(args)).not.toBeNull(),
   )
@@ -29,7 +29,7 @@ group('refusal (port of CommandRunner.Refusal)', () => {
 
 group('splitCommandLine (port of Arguments.Split)', () => {
   it('splits on spaces and groups double quotes', () => {
-    expect(splitCommandLine('backtest drcs --set depth=30')).toEqual(['backtest', 'drcs', '--set', 'depth=30'])
+    expect(splitCommandLine('backtest sample --set length=30')).toEqual(['backtest', 'sample', '--set', 'length=30'])
     expect(splitCommandLine('login "my name"  --password x')).toEqual(['login', 'my name', '--password', 'x'])
     expect(splitCommandLine('   ')).toEqual([])
   })

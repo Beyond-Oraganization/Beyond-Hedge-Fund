@@ -8,7 +8,7 @@ import type { WorkerCall, WorkerReply } from './worker.ts'
  * share they were given. The real engine is the bot's code, tested there and end to end.
  */
 
-const request: EngineRequest = { strategy: 'drcs', symbol: 'XAUUSD', interval: '1h', scenarios: { method: 'Bootstrap', seed: 42 } }
+const request: EngineRequest = { strategy: 'sample', symbol: 'XAUUSD', interval: '1h', scenarios: { method: 'Bootstrap', seed: 42 } }
 const candles: CandleColumns = { time: new Float64Array(3), open: new Float64Array(3), high: new Float64Array(3), low: new Float64Array(3), close: new Float64Array(3), volume: new Float64Array(3) }
 
 const result = (scenario: number): ScenarioResult => ({ scenario, finalBalance: 1000 + scenario, returnPercent: 0, maxDrawdownPercent: 0, trades: 1, winRate: 0, points: [1000] })
@@ -117,5 +117,76 @@ describe('a Monte Carlo on this device', () => {
 
   it('makes shares small enough to report progress often, and at most 25 scenarios', () => {
     expect([shareSize(200, 6), shareSize(1000, 6), shareSize(3, 6)]).toEqual([7, 25, 1])
+  })
+})
+
+/** A worker that records every call and answers each kind as the bot's engine would. */
+class RecordingWorker implements EngineWorker {
+  onmessage: ((event: MessageEvent<WorkerReply>) => void) | null = null
+  onerror: ((event: ErrorEvent) => void) | null = null
+  terminated = false
+  kinds: WorkerCall['kind'][] = []
+
+  constructor(private readonly loadAnswer: object) {}
+
+  postMessage(call: WorkerCall) {
+    this.kinds.push(call.kind)
+    const value = call.kind === 'load' ? this.loadAnswer : { ok: true, engine: '2.4.0' }
+    setTimeout(() => this.onmessage?.({ data: { id: call.id, value: JSON.stringify(value) } } as MessageEvent<WorkerReply>), 1)
+  }
+
+  terminate() {
+    this.terminated = true
+  }
+}
+
+describe('the strategy pack in the engine', () => {
+  const pack = { sha256: 'a'.repeat(64), bytes: new Uint8Array([77, 90, 1]) }
+  const loadedOk = { ok: true, engine: '2.4.0', strategies: ['sample'] }
+
+  function recording(loadAnswer: object = loadedOk) {
+    const started: RecordingWorker[] = []
+    const engine = createEngine({ base: 'https://app.test/engine/', workers: 2, spawn: () => started[started.push(new RecordingWorker(loadAnswer)) - 1]! })
+    return { engine, started }
+  }
+
+  it('reaches each worker once, before its first backtest', async () => {
+    const { engine, started } = recording()
+    engine.setStrategies(pack)
+
+    await engine.backtest(request, candles)
+    await engine.backtest(request, candles)
+    await engine.summarize({ initialBalance: 1000, real: result(0), results: [] })
+
+    expect(started[0]!.kinds).toEqual(['load', 'backtest', 'backtest', 'summarize'])
+  })
+
+  it('is not sent without one: the engine answers that no strategies are loaded', async () => {
+    const { engine, started } = recording()
+
+    await engine.backtest(request, candles)
+
+    expect(started[0]!.kinds).toEqual(['backtest'])
+  })
+
+  it('refused by the engine, fails the backtest with the engine’s reason', async () => {
+    const { engine } = recording({ ok: false, engine: '2.4.0', error: { message: 'The strategy pack is version 2.5.0 and this engine is 2.4.0; they must be the same. Update the app.' } })
+    engine.setStrategies(pack)
+
+    await expect(engine.backtest(request, candles)).rejects.toThrow('Update the app.')
+  })
+
+  it('changed or taken away, stops the workers that hold the old one', async () => {
+    const { engine, started } = recording()
+    engine.setStrategies(pack)
+    await engine.backtest(request, candles)
+
+    engine.setStrategies(pack)
+    expect(started[0]!.terminated).toBe(false)
+    engine.setStrategies(null)
+    expect(started[0]!.terminated).toBe(true)
+
+    await engine.backtest(request, candles)
+    expect(started[1]!.kinds).toEqual(['backtest'])
   })
 })

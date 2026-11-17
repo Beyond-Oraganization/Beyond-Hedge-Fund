@@ -118,7 +118,7 @@ I did tasks 1–9 on the mock at phone width before anyone else does. This is no
    - Task 4 will probably fail and task 5 needs a second screen.
    - *Fix:* a status line and the running strategies' plain names on Home, from the client's sessions and the alerts.
 2. **The bot's words reach clients:**
-   - A strategy started by staff (not from the menu) shows as "drcs", and Stop asks "Stop drcs? It opens nothing new. Nothing of it is open now."
+   - A strategy started by staff (not from the menu) shows as its strategy's id (e.g. "sample"), and Stop asks "Stop sample? It opens nothing new. Nothing of it is open now."
    - Activity says "Closed XAUUSD buy 2" and "Closed EURUSD sell 0.5".
    - *Fix:* show the menu name, or "A strategy run by the fund", and say "Gold" / "Euro against dollar" and "a trade" in place of symbols and sizes.
 3. **Two numbers for the same money:** Home shows 10,472.72 EUR (with open positions), but the limit message says "40% of the 9,990.64 EUR balance". A client will ask which is right. *Fix:* say "of the 9,990.64 EUR not in open trades", or base the limit on the value.

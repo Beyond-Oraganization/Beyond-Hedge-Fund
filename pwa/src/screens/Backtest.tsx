@@ -23,6 +23,7 @@ import { fmtCount, fmtMoney, fmtPercent, fmtSignedMoney, fmtSignedPercent, fmtTi
 import { useMarkets, useStatus, useStrategies } from '../hooks/data.ts'
 import { keepsEverything } from '../storage/local-store.ts'
 import { offerLink } from '../features/menu/menu.ts'
+import { PublishCard } from '../features/published/PublishCard.tsx'
 import { applySetup, configFromInput, initialConfig, toInput, validateConfig, type StrategyConfig } from '../strategy/config.ts'
 
 const dateOrNull = (text: string) => (text ? Date.parse(`${text}T00:00:00Z`) : null)
@@ -56,18 +57,18 @@ function phaseWords(phase: Phase): string {
 /** A seed for one Monte Carlo: every worker makes its scenarios from it. */
 const newSeed = () => Math.floor(Math.random() * 2 ** 31)
 
-/** "drcs on XAUUSD 1h". */
+/** "sample on XAUUSD 1h". */
 const titleOf = (run: SavedRun) => (isDeviceRun(run) ? `${run.result.strategy} on ${run.result.market.symbol} ${run.result.market.interval}` : `${run.report.strategy} on ${run.report.market}`)
 const marketOf = (run: SavedRun) => (isDeviceRun(run) ? `${run.result.market.symbol} ${run.result.market.interval}` : run.report.market)
 
 export default function Backtest() {
+  const { connection } = useBot()
   const strategies = useStrategies()
   const markets = useMarkets()
-  const status = useStatus()
+  const status = useStatus({ enabled: connection?.person?.role !== 'client' })
   const read = useRead()
   const engine = useEngine()
   const engineVersion = useEngineVersion()
-  const { connection } = useBot()
   // The owner offers a backtested setup to clients (the API key acts as the owner).
   const owner = (connection?.person?.role ?? 'owner') === 'owner'
   const [params] = useSearchParams()
@@ -84,10 +85,20 @@ export default function Backtest() {
   const [current, setCurrent] = useState<SavedRun | null>(null)
   const [saved, setSaved] = useState<SavedRun[]>([])
   const [compare, setCompare] = useState<string[]>([])
+  // Staff and the owner publish a run's figures for everyone (features/published).
+  const [publishing, setPublishing] = useState<DeviceRun | null>(null)
+  const [published, setPublished] = useState<string | null>(null)
   const stop = useRef<AbortController | null>(null)
   const ids = { balance: useId(), from: useId(), to: useId() }
 
-  const definitions = strategies.data?.parsed.ok ? strategies.data.parsed.value : null
+  // Staff and the owner (and the API key) size by Kelly, which may run a backtest on the server, and publish runs; a
+  // client the fund trusts backtests here without either (Fund/CommandPolicy.cs).
+  const staff = connection?.person?.role !== 'client'
+  const definitions = useMemo(() => {
+    const all = strategies.data?.parsed.ok ? strategies.data.parsed.value : null
+    if (!all || staff) return all
+    return all.map((d) => (d.sizing ? { ...d, sizing: { ...d.sizing, methods: d.sizing.methods.filter((method) => method.name !== 'kelly') } } : d))
+  }, [strategies.data, staff])
   const rows = markets.data?.parsed.ok ? markets.data.parsed.value : null
   const [symbol, interval] = (params.get('market') ?? '').split(' ')
   const draft = edited ?? (definitions && rows ? initialConfig(definitions, rows, { symbol, interval, strategy: params.get('strategy') }) : null)
@@ -348,6 +359,14 @@ export default function Backtest() {
             </button>
           ) : null}
         </div>
+        {published ? (
+          <Callout label="Published">
+            {published}
+          </Callout>
+        ) : null}
+        {publishing ? (
+          <PublishCard key={publishing.id} run={publishing} definitions={definitions} onClose={() => setPublishing(null)} onDone={setPublished} />
+        ) : null}
         {saved.length ? (
           <div className="stack">
             <DataTable
@@ -408,6 +427,18 @@ export default function Backtest() {
                     <ButtonLink compact variant="ghost" to={offerLink(run.input)}>
                       Offer to clients
                     </ButtonLink>
+                  ) : null}
+                  {staff && isDeviceRun(run) ? (
+                    <Button
+                      compact
+                      variant="ghost"
+                      onClick={() => {
+                        setPublished(null)
+                        setPublishing(run)
+                      }}
+                    >
+                      Publish
+                    </Button>
                   ) : null}
                   <label className="check small">
                     <input

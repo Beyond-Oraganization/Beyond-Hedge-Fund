@@ -4,7 +4,7 @@ import { figuresOf } from './figures.ts'
 import { curveByTime, endedAbove, keep, keepScenarios, kellyShare, type DeviceRun } from './runs.ts'
 
 const run = (answer = deviceAnswer()): DeviceRun => ({
-  kind: 'device', id: '1', at: 0, input: { strategy: 'drcs', symbol: 'XAUUSD', interval: '1h', params: {} }, balance: 1000, from: null, to: null, scenarios: 3, method: 'Bootstrap', result: keep(answer),
+  kind: 'device', id: '1', at: 0, input: { strategy: 'sample', symbol: 'XAUUSD', interval: '1h', params: {} }, balance: 1000, from: null, to: null, scenarios: 3, method: 'Bootstrap', result: keep(answer),
 })
 
 describe('a device backtest as the page keeps it', () => {

@@ -2,11 +2,11 @@
 // Records a real bot's answers as test fixtures, so the parsers are checked against what the bot really prints
 // (src/api/parse/parsers.test.ts reads every file in src/api/fixtures/recorded/).
 //
-//   BEYONDBOT_URL=http://127.0.0.1:8443 BEYONDBOT_API_KEY_FILE=~/beyondbot-api-key npm run record-fixtures [-- --all]
+//   BEYONDBOT_URL=http://127.0.0.1:8443 BEYONDBOT_API_KEY_FILE=~/beyondbot-api-key npm run record-fixtures
 //
-// Only commands that change nothing are sent. With --all it also asks for indicators, a signal and a backtest of
-// the market being traded (or the first stored one): those read the market into the bot's memory, and bot 2.0.0
-// then fails its session view while two or more markets are in memory, so the default leaves them out.
+// Only commands that change nothing are sent. This repository is public, so nothing of the fund's strategies is
+// recorded: not the catalog (strategies), a signal, a backtest or the indicators, and the session is written without
+// its strategies. The parsers of those are checked against the mock bot and its made-up sample strategy instead.
 //
 // The answers are redacted before they are written: the login, the broker account id and IPv4 addresses become
 // placeholders. Read the files before committing them all the same.
@@ -19,7 +19,6 @@ import { fileURLToPath } from 'node:url'
 const url = (process.env.BEYONDBOT_URL ?? 'http://127.0.0.1:8443').replace(/\/$/, '')
 const keyFile = process.env.BEYONDBOT_API_KEY_FILE?.replace(/^~(?=\/)/, homedir())
 const key = (process.env.BEYONDBOT_API_KEY ?? (keyFile ? await readFile(keyFile, 'utf8') : '')).trim()
-const all = process.argv.includes('--all')
 const out = fileURLToPath(new URL('../src/api/fixtures/recorded/', import.meta.url))
 
 if (key.length < 32) {
@@ -59,8 +58,12 @@ async function record(name, args) {
 
 const status = await record('status', ['status'])
 const markets = await record('market-list', ['market', 'list'])
-await record('strategies', ['strategies', '--json'])
 const session = await record('session', ['session', '--json'])
+// The session without its strategies: their parameters, rules and the reasons behind their signals are the fund's.
+if (session.json && typeof session.json === 'object') session.json.strategies = []
+const sealed = (blocks) => blocks.filter((b) => !(b.type === 'section' && /strateg/i.test(b.title ?? ''))).map((b) => (b.type === 'section' ? { ...b, blocks: sealed(b.blocks) } : b))
+session.blocks = sealed(session.blocks ?? [])
+session.output = ''
 await record('orders', ['orders', 'list'])
 await record('orders-broker', ['orders', 'list', '--broker'])
 
@@ -72,12 +75,7 @@ const market = traded ? [traded.symbol, INTERVALS[traded.interval] ?? traded.int
 if (market) {
   await record('candles', ['candles', 'show', ...market, '--last', '30'])
   await record('candles-oldest', ['candles', 'oldest', ...market])
-  if (all) {
-    await record('indicators', ['indicators', 'show', ...market, '--last', '10'])
-    await record('signal', ['signal', 'drcs', '--symbol', market[0], '--interval', market[1], '-d'])
-    await record('backtest', ['backtest', 'drcs', '--symbol', market[0], '--interval', market[1], '-d'])
-  }
-} else console.log('No stored market: candles, indicators, signal and backtest are left out.')
+} else console.log('No stored market: candles are left out.')
 
 // Redaction: the bot's login, the broker account id, and every IPv4 address.
 const secrets = [

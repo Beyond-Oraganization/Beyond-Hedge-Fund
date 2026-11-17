@@ -85,7 +85,7 @@ function statementOf(client, month, t) {
     cashFlowsConfirmed: true,
     trades: trades.length, wins: trades.filter((trade) => trade.result > 0).length, losses: trades.filter((trade) => trade.result < 0).length, realized,
     strategies: byStrategy, tradeList: trades, cashFlows: flows,
-    events: started >= from && started < end ? [{ at: iso(started + 9 * 3600_000), text: 'Strategy started: drcs, Gold' }] : [],
+    events: started >= from && started < end ? [{ at: iso(started + 9 * 3600_000), text: 'Strategy started: sample, Gold' }] : [],
     days: inMonth.map((day) => ({ date: day.date, value: day.value, cashFlow: day.cashFlow, return: opening ? round(day.growth / opening.growth - 1, 6) : null })),
   }
   const total = { currency: CURRENCY, accounts: 1, opening: account.opening, closing: account.closing, deposits, withdrawals: 0, change: account.change, realized }
@@ -144,7 +144,7 @@ export function createPortfolio(now) {
         { at: iso(t - 2 * 3600_000), account: ACCOUNT, kind: 'close', text: 'Closed XAUUSD buy 2 at a gain of 84.10', amount: 84.1 },
         { at: iso(t - 26 * 3600_000), account: ACCOUNT, kind: 'close', text: 'Closed EURUSD sell 0.5 at a loss of 12.40', amount: -12.4 },
         { at: deposit.at, account: ACCOUNT, kind: 'cashFlow', text: 'Deposit: Second transfer', amount: 2000 },
-        { at: iso(t - 9 * DAY), account: ACCOUNT, kind: 'strategy', text: 'Strategy started: drcs, Gold', amount: null },
+        { at: iso(t - 9 * DAY), account: ACCOUNT, kind: 'strategy', text: 'Strategy started: sample, Gold', amount: null },
       ]
       const last = Number(option(args, '--last') ?? 50)
       return answer(items.slice(0, last), items.map((item) => item.text).join('\n'), args.includes('--json'))

@@ -26,7 +26,7 @@ function palette(element: HTMLElement) {
 
 /**
  * A price or balance chart in the website's language: no background of its own, the section's rules as the
- * grid, Plex Mono axes, gain and loss candles, navy lines (dashed for the envelope bands). TradingView's
+ * grid, Plex Mono axes, gain and loss candles, navy lines (dashed for a strategy's levels). TradingView's
  * attribution stays on, as lightweight-charts' licence asks.
  */
 export function Chart({ candles, lines = [], label, height }: { candles?: CandleRow[]; lines?: ChartLine[]; label: string; height?: number }) {

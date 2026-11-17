@@ -70,7 +70,7 @@ type Case = { name: string; element: () => ReactElement; command: string; normal
 const SCREENS: Case[] = [
   { name: 'Markets', element: () => <Markets />, command: 'market list', normal: /^XAUUSD 1h$/, empty: { answer: 'No markets yet. Add one with: market add XAUUSD 1h', shows: 'No markets yet.' } },
   { name: 'Orders', element: () => <Orders />, command: 'orders list --broker', normal: /^812345$/, empty: { answer: 'The broker has no open positions or pending orders.', shows: 'Nothing is open at the broker.' } },
-  { name: 'Strategies', element: () => <Strategies />, command: 'strategies', normal: /Double Red Cross/ },
+  { name: 'Strategies', element: () => <Strategies />, command: 'strategies', normal: /Sample bands/ },
   { name: 'System', element: () => <System />, command: 'status', normal: /^2\.2\.0, up / },
 ]
 

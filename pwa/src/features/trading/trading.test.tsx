@@ -120,14 +120,14 @@ describe('A budget for a new session', () => {
 
 describe('Every session of every account', () => {
   const session = (name: string, symbol: string, extra: Record<string, unknown> = {}) => ({
-    name, market: { symbol, interval: 'Hour1' }, strategy: 'drcs', parameters: {}, startedAt: '2026-11-15T08:00:00Z', ticks: 3, trades: 2,
+    name, market: { symbol, interval: 'Hour1' }, strategy: 'sample', parameters: {}, startedAt: '2026-11-15T08:00:00Z', ticks: 3, trades: 2,
     lastTick: null, lastError: null, lastErrorAt: null, nextTickAt: '2026-11-15T19:00:00Z', ...extra,
   })
 
   it('shows each account’s sessions in one table, with their budgets and a failed tick as an error', async () => {
     perAccount = {
       'client-a': [session('gold', 'XAUUSD', { budget: { amount: 4000, currency: 'EUR', since: '2026-11-15T08:00:00Z', money: 4084.1, room: 4, open: 1 } })],
-      'client-b': [session('euro', 'EURPLN', { lastTick: { market: { symbol: 'EURPLN', interval: 'Hour1' }, strategy: 'drcs', time: '2026-11-15T18:00:02Z', outcome: 'Failed', candle: null, insight: null, candlesAdded: 0, trade: null, elapsed: '00:00:00.1', nextTickAt: '2026-11-15T19:00:00Z', error: 'Market data is 3 hours old.' } })],
+      'client-b': [session('euro', 'EURPLN', { lastTick: { market: { symbol: 'EURPLN', interval: 'Hour1' }, strategy: 'sample', time: '2026-11-15T18:00:02Z', outcome: 'Failed', candle: null, insight: null, candlesAdded: 0, trade: null, elapsed: '00:00:00.1', nextTickAt: '2026-11-15T19:00:00Z', error: 'Market data is 3 hours old.' } })],
     }
     show()
 
@@ -144,7 +144,7 @@ describe('Every session of every account', () => {
   it('is left out with one account, whose sessions the screen shows already', async () => {
     show()
 
-    await screen.findAllByText(/drcs/)
+    await screen.findAllByText(/sample/)
     expect(screen.queryByRole('region', { name: 'Every session, every account' })).not.toBeInTheDocument()
   })
 })

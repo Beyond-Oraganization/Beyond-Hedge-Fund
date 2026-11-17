@@ -7,9 +7,10 @@ type Check = { refusal: string | null; largest: number | null } | null
 export function sessionNameOf(name: string): string
 
 export type MockMenu = {
+  setup(id: number): { id: number; name: string; strategy: string; market: string; sizing: string; describe: string } | null
   run(args: string[], person?: Person): Answer
   limits(args: string[]): Answer
   expand(args: string[], person: Person, context: { balance: number; currency: string; sessions: string[]; live: boolean }): { answer: Answer } | { args: string[]; check: Check }
 }
 
-export function createMenu(options: { clientOf: (login: string) => number | null; now?: () => number }): MockMenu
+export function createMenu(options: { clientOf: (login: string) => number | null; sees?: (person: Person) => boolean; now?: () => number }): MockMenu
