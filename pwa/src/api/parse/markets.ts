@@ -66,30 +66,6 @@ export function parseCandles(result: CommandResult): Parsed<CandleRow[]> {
   return parsed(rows.sort((a, b) => a.time - b.time))
 }
 
-export type IndicatorRow = { time: number; close: number; ema: number; rma: number; atr: number; lower: number; upper: number }
-export type Indicators = { depth: number; rows: IndicatorRow[]; computedOver: number | null }
-
-/** `indicators show`: table Open (UTC), Close, EMA(d), RMA(d), ATR(d), EMA − ATR, EMA + ATR. */
-export function parseIndicators(result: CommandResult): Parsed<Indicators> {
-  const table = findTable(result.blocks, ['Open (UTC)', 'Close'])
-  const ema = table?.columns.find((column) => /^EMA\(\d+\)$/.test(column))
-  const rma = table?.columns.find((column) => /^RMA\(\d+\)$/.test(column))
-  const atr = table?.columns.find((column) => /^ATR\(\d+\)$/.test(column))
-  if (!table || !ema || !rma || !atr) return unreadable('No indicator table in the answer.')
-  const minus = table.columns.find((column) => /^EMA [−-] ATR$/.test(column)) ?? 'EMA − ATR'
-  const plus = table.columns.find((column) => /^EMA \+ ATR$/.test(column)) ?? 'EMA + ATR'
-  const rows: IndicatorRow[] = []
-  for (const row of rowsOf(table)) {
-    const values = [parseTime(row['Open (UTC)']), parseNumber(row.Close), parseNumber(row[ema]), parseNumber(row[rma]), parseNumber(row[atr]), parseNumber(row[minus]), parseNumber(row[plus])]
-    if (values.some((value) => value == null)) return unreadable(`Unreadable indicator row: ${Object.values(row).join(' ')}`)
-    const [time, close, e, r, a, lower, upper] = values as number[]
-    rows.push({ time: time!, close: close!, ema: e!, rma: r!, atr: a!, lower: lower!, upper: upper! })
-  }
-  const depth = Number(/\((\d+)\)/.exec(ema)?.[1] ?? 0)
-  const over = topLines(result.blocks).map((line) => /^Computed over all ([\d,]+) stored candles/.exec(line)?.[1]).find(Boolean)
-  return parsed({ depth, rows: rows.sort((a, b) => a.time - b.time), computedOver: parseNumber(over ?? null) })
-}
-
 /** `candles oldest`: "cTrader's oldest XAUUSD 1h candle opened 2019-01-02 23:00 UTC (close 1,284.5)." */
 export function parseOldestCandle(result: CommandResult): Parsed<{ broker: string; time: number; close: number | null }> {
   for (const line of topLines(result.blocks)) {

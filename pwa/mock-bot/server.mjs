@@ -13,9 +13,11 @@
 //
 // Test control (no key, only with --control): POST /__mock/reset, /__mock/advance?ms=3600000, /__mock/config
 import http from 'node:http'
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { createBot } from './bot.mjs'
-import { createPeople } from './people.mjs'
+import { createPeople, seesStrategies } from './people.mjs'
+import { createPublished } from './published.mjs'
 import { createPortfolio } from './portfolio.mjs'
 import { createClients } from './clients.mjs'
 import { overview } from './overview.mjs'
@@ -27,6 +29,18 @@ const MAX_BODY = 4096
 const TERMINAL_ONLY = new Set(['run', 'serve', 'ui', 'shell', 'exit', 'quit'])
 const WATCHABLE = new Set(['session', 'balance', 'positions'])
 const SECRET = ['--password', '--new-password', '--credential', '--code']
+
+/**
+ * `strategies bundle --json` (Fund/StrategyBundle.cs): the made-up sample pack (sample-pack/, published with the engine by
+ * npm run engine), as the real bot hands out its own: base64 in pieces of at most 4,000 characters, its size and SHA-256.
+ */
+function strategyBundle() {
+  const pack = readFileSync(new URL('./sample-pack/BeyondBot.Strategies.dll', import.meta.url))
+  const { version } = JSON.parse(readFileSync(new URL('../public/engine/version.json', import.meta.url), 'utf8'))
+  const base64 = pack.toString('base64')
+  const pieces = base64.match(/.{1,4000}/g)
+  return { version, sha256: createHash('sha256').update(pack).digest('hex'), strategies: ['sample'], bytes: pack.length, pack: pieces }
+}
 
 const split = (line) => [...line.matchAll(/"[^"]*"|[^\s]+/g)].map((m) => m[0].replace(/^"+|"+$/g, '')).filter(Boolean)
 const normalize = (args) => (args.length === 1 && (args[0] === 'help' || args[0] === '?') ? ['--help'] : args)
@@ -62,7 +76,8 @@ export function startServer({ port = 8443, key = DEFAULT_KEY, origins = '*', con
   let people = createPeople()
   let clients = createClients((login) => people.roleOf(login))
   let audit = createAudit()
-  let menu = createMenu({ clientOf: (login) => clients.clientOf(login) })
+  let menu = createMenu({ clientOf: (login) => clients.clientOf(login), sees: seesStrategies })
+  let published = createPublished({ setupOf: (id) => menu.setup(id), sees: seesStrategies })
   // Person's login → their connection: what they may reach, kept between their commands.
   let personal = new Map()
   const allowed = (origin) => {
@@ -87,7 +102,8 @@ export function startServer({ port = 8443, key = DEFAULT_KEY, origins = '*', con
         people = createPeople()
         clients = createClients((login) => people.roleOf(login))
         audit = createAudit()
-        menu = createMenu({ clientOf: (login) => clients.clientOf(login) })
+        menu = createMenu({ clientOf: (login) => clients.clientOf(login), sees: seesStrategies })
+        published = createPublished({ setupOf: (id) => menu.setup(id), sees: seesStrategies })
         personal = new Map()
         const given = Object.fromEntries(url.searchParams)
         const flag = (name) => (name in given ? given[name] === '1' || given[name] === 'true' : botOptions[name])
@@ -196,6 +212,12 @@ export function startServer({ port = 8443, key = DEFAULT_KEY, origins = '*', con
       // The strategy menu, clients' limits, and a start or check from the menu (turned into the bot's own arguments).
       const person = caller.kind === 'person' ? caller.person : null
       if (args[0] === 'menu' || (args[0] === 'clients' && args[1] === 'limits')) return reply(menu.run(args, person))
+      // Published backtests, and the strategy pack (the made-up sample: no strategy of the fund's is in this repository).
+      if (args[0] === 'published') return reply(published.run(args, person))
+      if (args[0] === 'strategies' && args[1] === 'bundle') {
+        const bundle = strategyBundle()
+        return reply({ exitCode: 0, output: JSON.stringify(bundle, null, 2), blocks: [], error: null, json: args.includes('--json') ? bundle : null })
+      }
       let menuCheck = null
       if (args[0] === 'trading' && (args[1] === 'start' || args[1] === 'check') && args.some((a) => a === '--setup' || a.startsWith('--setup='))) {
         const state = bot.state

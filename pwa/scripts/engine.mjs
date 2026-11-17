@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Publishes the bot's backtest engine (its Core, compiled to WebAssembly) into public/engine, with a version.json
-// naming the bot version and commit it was built from. The app compares that version with the bot's.
+// Publishes the bot's backtest engine (its Core, compiled to WebAssembly, without strategies) into public/engine, with a
+// version.json naming the bot version and commit it was built from, and the made-up sample pack the development bot hands
+// out into mock-bot/sample-pack/. The app compares the engine's version with the bot's.
 //
 //   BEYONDBOT_REPO=~/Documents/Programming/Beyond-Bot-Bybit npm run engine
 //
@@ -19,5 +20,6 @@ if (!existsSync(script)) {
   process.exit(2)
 }
 
-const result = spawnSync('bash', [script, fileURLToPath(new URL('../public/engine', import.meta.url))], { stdio: 'inherit' })
+// The engine ships without strategies; the development bot hands out the made-up sample pack (mock-bot/sample-pack/).
+const result = spawnSync('bash', [script, fileURLToPath(new URL('../public/engine', import.meta.url)), fileURLToPath(new URL('../mock-bot/sample-pack/BeyondBot.Strategies.dll', import.meta.url))], { stdio: 'inherit' })
 process.exit(result.status ?? 1)

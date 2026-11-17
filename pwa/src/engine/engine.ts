@@ -1,8 +1,16 @@
 import type { WorkerCall, WorkerReply } from './worker.ts'
-import type { CandleColumns, DeviceScenarios, EngineAnswer, EngineRequest, SimulateAnswer, SummaryAnswer, SummaryRequest } from './types.ts'
+import type { CandleColumns, DeviceScenarios, EngineAnswer, EngineRequest, LevelsAnswer, SimulateAnswer, SummaryAnswer, SummaryRequest } from './types.ts'
 
-/** Backtests on this device: the bot's own engine, in Web Workers. */
+/** The strategies the engine runs: the pack the bot handed out (engine/pack.ts), identified by its SHA-256. */
+export type EngineStrategies = { sha256: string; bytes: Uint8Array }
+
+/**
+ * Backtests on this device: the bot's own engine, in Web Workers. It ships without strategies (the app is public) and
+ * runs the ones {@link Engine.setStrategies} gives it; without any, a backtest answers that none are loaded.
+ */
 export interface Engine {
+  /** The strategy pack to run from now on, or null to run none. Another pack (or none) starts fresh workers. */
+  setStrategies(strategies: EngineStrategies | null): void
   /** Answers the request over the candles, or the bot's message for a wrong one; rejects when the engine cannot run. */
   backtest(request: EngineRequest, candles: CandleColumns, signal?: AbortSignal): Promise<EngineAnswer>
   /**
@@ -12,6 +20,8 @@ export interface Engine {
   simulate(request: EngineRequest, candles: CandleColumns, count: number, options?: { signal?: AbortSignal; onProgress?: (done: number, total: number) => void }): Promise<SimulateAnswer>
   /** Sums up the scenarios and ranks the real history among them. */
   summarize(request: SummaryRequest, signal?: AbortSignal): Promise<SummaryAnswer>
+  /** The price levels the strategy's rules compare the last `count` candles with, from the strategy itself, for a chart. */
+  levels(request: EngineRequest, candles: CandleColumns, count: number, signal?: AbortSignal): Promise<LevelsAnswer>
 }
 
 /** What the engine needs of a Web Worker; tests give it a fake one. */
@@ -72,11 +82,15 @@ export const shareSize = (count: number, workers: number) => Math.max(1, Math.mi
 export function createEngine({ base = engineBase(), workers = poolSize(), spawn = spawnWorker }: EngineOptions = {}): Engine {
   const running: (EngineWorker | null)[] = []
   const waiting = new Map<number, { resolve: (value: string) => void; reject: (error: Error) => void }>()
+  // Which workers loaded the current pack (by index), and the pack as the worker takes it: plain numbers.
+  const loaded = new Map<number, Promise<void>>()
+  let strategies: { sha256: string; numbers: number[] } | null = null
   let next = 0
 
   const stop = (error: Error) => {
     running.forEach((worker) => worker?.terminate())
     running.length = 0
+    loaded.clear()
     for (const call of waiting.values()) call.reject(error)
     waiting.clear()
   }
@@ -100,7 +114,7 @@ export function createEngine({ base = engineBase(), workers = poolSize(), spawn 
   }
 
   type Message = WorkerCall extends infer Call ? (Call extends WorkerCall ? Omit<Call, 'id' | 'base'> : never) : never
-  const call = (index: number, message: Message, signal?: AbortSignal) =>
+  const send = (index: number, message: Message, signal?: AbortSignal) =>
     new Promise<string>((resolve, reject) => {
       if (signal?.aborted) return reject(new EngineCancelled())
       const id = ++next
@@ -109,7 +123,34 @@ export function createEngine({ base = engineBase(), workers = poolSize(), spawn 
       worker(index).postMessage({ ...message, id, base } as WorkerCall)
     })
 
+  // The pack reaches each worker once, before the first call that needs a strategy.
+  const ensureLoaded = (index: number, signal?: AbortSignal) => {
+    if (!strategies) return Promise.resolve()
+    let load = loaded.get(index)
+    if (!load) {
+      load = send(index, { kind: 'load', pack: strategies.numbers }, signal).then((text) => {
+        const answer = JSON.parse(text) as { ok: boolean; error?: { message: string } }
+        if (!answer.ok) throw new Error(answer.error?.message ?? 'The engine refused the strategy pack.')
+      })
+      load.catch(() => loaded.delete(index))
+      loaded.set(index, load)
+    }
+    return load
+  }
+
+  const call = async (index: number, message: Message, signal?: AbortSignal) => {
+    if (message.kind !== 'summarize' && message.kind !== 'version') await ensureLoaded(index, signal)
+    return send(index, message, signal)
+  }
+
   return {
+    setStrategies(next) {
+      if ((next?.sha256 ?? null) === (strategies?.sha256 ?? null)) return
+      strategies = next ? { sha256: next.sha256, numbers: Array.from(next.bytes) } : null
+      // Workers that hold other strategies (or any, when there are none now) stop; the next call starts fresh ones.
+      if (running.length) stop(new Error('The strategies changed while the engine worked; run it again.'))
+    },
+
     async backtest(request, candles, signal) {
       return JSON.parse(await call(0, { kind: 'backtest', request: JSON.stringify(request), candles }, signal)) as EngineAnswer
     },
@@ -151,6 +192,10 @@ export function createEngine({ base = engineBase(), workers = poolSize(), spawn 
 
     async summarize(request, signal) {
       return JSON.parse(await call(0, { kind: 'summarize', request: JSON.stringify(request) }, signal)) as SummaryAnswer
+    },
+
+    async levels(request, candles, count, signal) {
+      return JSON.parse(await call(0, { kind: 'levels', request: JSON.stringify(request), candles, count }, signal)) as LevelsAnswer
     },
   }
 }

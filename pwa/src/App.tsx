@@ -28,6 +28,7 @@ const Home = lazy(() => import('./features/portfolio/Home.tsx'))
 const Activity = lazy(() => import('./features/portfolio/Activity.tsx'))
 const ClientStrategies = lazy(() => import('./features/menu/ClientStrategies.tsx'))
 const MenuEditor = lazy(() => import('./features/menu/MenuEditor.tsx'))
+const PublishedPage = lazy(() => import('./features/published/PublishedPage.tsx'))
 const Statement = lazy(() => import('./features/statements/Statement.tsx'))
 // Staff's Overview and clients (plan, section 7).
 const Overview = lazy(() => import('./features/overview/Overview.tsx'))
@@ -82,6 +83,7 @@ const router = createHashRouter([
       { path: 'my-strategies', element: page(<ClientStrategies />) },
       { path: 'me/statements/:month', element: page(<Statement />) },
       { path: 'menu', element: page(<MenuEditor />) },
+      { path: 'published', element: page(<PublishedPage />) },
       { path: 'overview', element: page(<Overview />) },
       { path: 'clients', element: page(<ClientsList />) },
       { path: 'clients/:id', element: page(<ClientPage />) },

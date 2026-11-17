@@ -8,9 +8,12 @@ import type { CandleColumns } from './types.ts'
 
 export type WorkerCall =
   | { id: number; base: string; kind: 'version' }
+  /** The strategy pack's bytes (the engine ships without strategies): loaded once per worker, before its first backtest. */
+  | { id: number; base: string; kind: 'load'; pack: number[] }
   | { id: number; base: string; kind: 'backtest'; request: string; candles: CandleColumns }
   | { id: number; base: string; kind: 'simulate'; request: string; candles: CandleColumns; first: number; count: number }
   | { id: number; base: string; kind: 'summarize'; request: string }
+  | { id: number; base: string; kind: 'levels'; request: string; candles: CandleColumns; count: number }
 
 export type WorkerReply = { id: number; value: string } | { id: number; error: string }
 
@@ -18,9 +21,11 @@ type Columns = [openTimes: number[], open: number[], high: number[], low: number
 
 type EngineExports = {
   Version: () => string
+  LoadStrategies: (pack: number[]) => string
   Backtest: (request: string, ...columns: Columns) => string
   Simulate: (request: string, ...columnsThenRange: [...Columns, first: number, count: number]) => string
   Summarize: (request: string) => string
+  Levels: (request: string, ...columnsThenCount: [...Columns, count: number]) => string
 }
 
 type DotnetModule = {
@@ -57,12 +62,16 @@ function answer(exports: EngineExports, call: WorkerCall): string {
   switch (call.kind) {
     case 'version':
       return exports.Version()
+    case 'load':
+      return exports.LoadStrategies(call.pack)
     case 'backtest':
       return exports.Backtest(call.request, ...columns(call.candles))
     case 'simulate':
       return exports.Simulate(call.request, ...columns(call.candles), call.first, call.count)
     case 'summarize':
       return exports.Summarize(call.request)
+    case 'levels':
+      return exports.Levels(call.request, ...columns(call.candles), call.count)
   }
 }
 

@@ -112,14 +112,6 @@ export const cmd = {
     ...(from != null ? ['--from', utcArg(from)] : []),
     '--json',
   ],
-  indicatorsShow: (symbol: string, interval: string, { depth, last }: { depth?: number; last?: number } = {}) => [
-    'indicators',
-    'show',
-    symbol,
-    interval,
-    ...(depth ? ['--depth', String(depth)] : []),
-    ...(last ? ['--last', String(last)] : []),
-  ],
 
   strategies: () => ['strategies', '--json'],
   /** The catalog of a bot from before rules, which has no --json. */
