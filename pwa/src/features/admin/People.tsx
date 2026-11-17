@@ -46,6 +46,43 @@ function TemporaryPassword({ login, value }: { login: string; value: string }) {
   )
 }
 
+/** Changes what the app calls a person: their name and e-mail (an emptied e-mail is removed). */
+function EditPerson({ person, change, busy, onClose }: { person: Person; change: ReturnType<typeof useChange>['change']; busy: string | null; onClose: () => void }) {
+  const id = useId()
+  const [name, setName] = useState(person.name)
+  const [email, setEmail] = useState(person.email ?? '')
+
+  async function save(event: FormEvent) {
+    event.preventDefault()
+    if (!name.trim()) return
+    const args = ['people', 'change', person.login, '--name', name.trim(), ...(email.trim() ? ['--email', email.trim()] : ['--no-email'])]
+    if (await change(`edit:${person.login}`, args)) onClose()
+  }
+
+  return (
+    <Card title={`Edit ${person.login}`}>
+      <form className="k-form" onSubmit={save}>
+        <div className="k-field">
+          <label htmlFor={`${id}-name`}>Name</label>
+          <input id={`${id}-name`} className="k-input" value={name} maxLength={100} required onChange={(event) => setName(event.target.value)} />
+        </div>
+        <div className="k-field">
+          <label htmlFor={`${id}-email`}>E-mail (optional)</label>
+          <input id={`${id}-email`} className="k-input" type="email" value={email} maxLength={254} onChange={(event) => setEmail(event.target.value)} />
+        </div>
+        <div className="k-row">
+          <Button type="submit" variant="primary" busy={busy === `edit:${person.login}`} disabled={!name.trim()}>
+            Save
+          </Button>
+          <Button variant="quiet" onClick={onClose}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </Card>
+  )
+}
+
 function AddPerson({ change, busy }: { change: ReturnType<typeof useChange>['change']; busy: string | null }) {
   const id = useId()
   const [login, setLogin] = useState('')
@@ -108,13 +145,16 @@ function AddPerson({ change, busy }: { change: ReturnType<typeof useChange>['cha
 
 /**
  * The people who sign in (docs/fund-app-redesign-plan.md, section 6: the owner's): their role, how far their sign-in got,
- * and the owner's controls. Every change here is reversible, so none asks first; each goes in the audit log.
+ * and the owner's controls. Every change here is reversible, so none asks first, except Delete, which asks in place; each
+ * goes in the audit log.
  */
 export default function People() {
   const people = usePeople()
   // The signed-in owner's own row: no demoting or disabling yourself from here (the API key and the terminal still can).
   const me = useBot().connection?.person?.login ?? null
   const { change, busy, outcome } = useChange()
+  const [editing, setEditing] = useState<Person | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
 
   const columns: Column<Person>[] = [
     { key: 'name', header: 'Person', card: 'title', render: (p) => <span><strong>{p.name}</strong> <span className="k-feed-account">{p.login}{p.login === me ? ' (you)' : ''}</span></span> },
@@ -129,11 +169,41 @@ export default function People() {
         </select>
       ),
     },
+    {
+      key: 'trusted',
+      header: 'Strategies',
+      wrap: true,
+      // The owner's trust in a client: they get the strategy pack, backtest, and see how a strategy trades. Reversible, and in
+      // force from their next request, so it applies at once without asking.
+      render: (p) =>
+        p.role === 'client' ? (
+          <label className="check small">
+            <input type="checkbox" checked={p.trusted} disabled={busy !== null} aria-label={`Trust ${p.login} with the strategies`} onChange={(event) => void change(`trust:${p.login}`, ['people', 'trust', p.login, event.target.checked ? 'on' : 'off'])} />
+            {p.trusted ? 'Trusted' : 'By name only'}
+          </label>
+        ) : (
+          <span className="k-hint">By role</span>
+        ),
+    },
     { key: 'signin', header: 'Sign-in', wrap: true, render: (p) => (p.disabled ? <Badge tone="warn">Disabled</Badge> : signInWords(p)) },
   ]
 
-  const actions = (p: Person) => (
+  const actions = (p: Person) =>
+    deleting === p.login ? (
+      <div className="k-row" role="group" aria-label={`Delete ${p.login}?`}>
+        <span className="k-hint">For good: signed out, unlinked from their client; the audit log keeps what they did.</span>
+        <Button variant="danger" busy={busy === `delete:${p.login}`} disabled={busy !== null} onClick={() => void change(`delete:${p.login}`, ['people', 'delete', p.login, '--yes']).then(() => setDeleting(null))}>
+          Delete for good
+        </Button>
+        <Button variant="quiet" onClick={() => setDeleting(null)}>
+          Keep
+        </Button>
+      </div>
+    ) : (
     <div className="k-row">
+      <Button variant="quiet" disabled={busy !== null} onClick={() => setEditing(p)} aria-label={`Edit ${p.login}`}>
+        Edit
+      </Button>
       {p.login === me ? null : p.disabled ? (
         <Button variant="quiet" busy={busy === `enable:${p.login}`} disabled={busy !== null} onClick={() => void change(`enable:${p.login}`, ['people', 'enable', p.login])} aria-label={`Enable ${p.login}`}>
           Enable
@@ -158,8 +228,13 @@ export default function People() {
       >
         Reset password
       </Button>
+      {p.login === me ? null : (
+        <Button variant="quiet" disabled={busy !== null} onClick={() => setDeleting(p.login)} aria-label={`Delete ${p.login}`}>
+          Delete
+        </Button>
+      )}
     </div>
-  )
+    )
 
   return (
     <Section>
@@ -181,8 +256,9 @@ export default function People() {
             )
           }
         </ClientRead>
+        {editing ? <EditPerson key={editing.login} person={editing} change={change} busy={busy} onClose={() => setEditing(null)} /> : null}
         <AddPerson change={change} busy={busy} />
-        <p className="k-hint">Disable stops someone signing in and signs them out everywhere (a lost phone, someone who left). Reset code makes them add their code app again at the next sign-in. Reset password gives them a new temporary one.</p>
+        <p className="k-hint">Disable stops someone signing in and signs them out everywhere (a lost phone, someone who left); Enable undoes it. Delete removes them for good. Reset code makes them add their code app again at the next sign-in. Reset password gives them a new temporary one. A trusted client gets the strategies’ code, backtests, and sees how a strategy trades; any other client chooses setups by name.</p>
       </div>
     </Section>
   )

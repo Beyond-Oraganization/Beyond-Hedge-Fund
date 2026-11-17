@@ -3,7 +3,8 @@ import { parsed, unreadable, type Parsed } from '../../api/parse/blocks.ts'
 import type { CommandResult } from '../../api/types.ts'
 
 /** A person who signs in (`people list --json`, Fund/People.cs PersonView in Beyond-Bot-Bybit). */
-export type Person = { login: string; name: string; email: string | null; role: 'owner' | 'staff' | 'client'; mustChangePassword: boolean; codeSet: boolean; disabled: boolean; createdAt: string; sessions: number }
+/** `trusted`: may have the strategies (staff and the owner by role, a client when the owner trusts them; bot 2.5.0). */
+export type Person = { login: string; name: string; email: string | null; role: 'owner' | 'staff' | 'client'; mustChangePassword: boolean; codeSet: boolean; disabled: boolean; createdAt: string; sessions: number; trusted: boolean }
 
 /** One line of the audit log (`audit --json`, Persistence/IAuditRepository.cs AuditEntry): what changed, who asked, how it ended. */
 export type AuditEntry = { id: number; at: string; via: string; person: string | null; role: string | null; account: string | null; command: string; outcome: 'done' | 'refused' | 'failed' | string; exitCode: number | null; error: string | null }
@@ -17,7 +18,7 @@ export function parsePeople(result: CommandResult): Parsed<Person[]> {
   return parsed(
     result.json.filter(isObject).flatMap((p) =>
       typeof p.login === 'string' && ROLES.includes(p.role as Person['role'])
-        ? [{ login: p.login, name: str(p.name) ?? p.login, email: str(p.email), role: p.role as Person['role'], mustChangePassword: p.mustChangePassword === true, codeSet: p.codeSet === true, disabled: p.disabled === true, createdAt: str(p.createdAt) ?? '', sessions: typeof p.sessions === 'number' ? p.sessions : 0 }]
+        ? [{ login: p.login, name: str(p.name) ?? p.login, email: str(p.email), role: p.role as Person['role'], mustChangePassword: p.mustChangePassword === true, codeSet: p.codeSet === true, disabled: p.disabled === true, createdAt: str(p.createdAt) ?? '', sessions: typeof p.sessions === 'number' ? p.sessions : 0, trusted: p.trusted === true }]
         : [],
     ),
   )

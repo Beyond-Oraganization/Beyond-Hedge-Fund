@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
@@ -65,6 +65,54 @@ afterAll(() => server.close())
 const passwordSent = (sub: string) => sent.find((args) => args[0] === 'people' && args[1] === sub)?.find((a) => a.startsWith('--password='))?.slice(11)
 
 describe('People', () => {
+  it('trusts a client with the strategies at once, and only a client: staff and the owner have them by role', async () => {
+    const user = userEvent.setup()
+    show(<People />)
+
+    const trust = (await screen.findAllByRole('checkbox', { name: 'Trust carol with the strategies' }))[0]!
+    expect(trust).not.toBeChecked()
+    await user.click(trust)
+
+    expect(await screen.findByText(/^carol is trusted:/)).toBeInTheDocument()
+    expect(sent).toContainEqual(['people', 'trust', 'carol', 'on'])
+    await waitFor(() => expect(screen.getAllByRole('checkbox', { name: 'Trust carol with the strategies' })[0]).toBeChecked())
+    expect(screen.queryAllByRole('checkbox', { name: 'Trust sam with the strategies' })).toHaveLength(0)
+    expect(screen.getAllByText('By role').length).toBeGreaterThan(0)
+  })
+
+  it('edits a person’s name and e-mail, and removes an e-mail left empty', async () => {
+    const user = userEvent.setup()
+    show(<People />)
+
+    await user.click((await screen.findAllByRole('button', { name: 'Edit carol' }))[0]!)
+    const edit = screen.getByRole('region', { name: 'Edit carol' })
+    await user.clear(within(edit).getByLabelText('Name'))
+    await user.type(within(edit).getByLabelText('Name'), 'Carol Smith')
+    await user.clear(within(edit).getByLabelText('E-mail (optional)'))
+    await user.click(within(edit).getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText('carol is now Carol Smith, with no e-mail.')).toBeInTheDocument()
+    expect(sent).toContainEqual(['people', 'change', 'carol', '--name', 'Carol Smith', '--no-email'])
+    expect(screen.queryByRole('region', { name: 'Edit carol' })).not.toBeInTheDocument()
+    expect((await screen.findAllByText('Carol Smith')).length).toBeGreaterThan(0)
+  })
+
+  it('deletes a person only after asking in place, and Keep asks nothing', async () => {
+    const user = userEvent.setup()
+    show(<People />)
+
+    await user.click((await screen.findAllByRole('button', { name: 'Delete carol' }))[0]!)
+    await user.click(screen.getAllByRole('group', { name: 'Delete carol?' }).map((group) => within(group).getByRole('button', { name: 'Keep' }))[0]!)
+    expect(sent.some((args) => args[1] === 'delete')).toBe(false)
+
+    await user.click(screen.getAllByRole('button', { name: 'Delete carol' })[0]!)
+    await user.click(within(screen.getAllByRole('group', { name: 'Delete carol?' })[0]!).getByRole('button', { name: 'Delete for good' }))
+
+    expect(await screen.findByText(/^Deleted carol \(Carol Example\): they can no longer sign in/)).toBeInTheDocument()
+    expect(sent).toContainEqual(['people', 'delete', 'carol', '--yes'])
+    await waitFor(() => expect(screen.queryAllByText('Carol Example')).toHaveLength(0))
+  })
+
   it('lists everyone with their role and how far their sign-in got', async () => {
     show(<People />)
 
@@ -200,7 +248,7 @@ describe('Managed accounts', () => {
 })
 
 describe('words and passwords', () => {
-  const person = (patch: Partial<Person>): Person => ({ login: 'x', name: 'X', email: null, role: 'client', mustChangePassword: false, codeSet: true, disabled: false, createdAt: '', sessions: 0, ...patch })
+  const person = (patch: Partial<Person>): Person => ({ login: 'x', name: 'X', email: null, role: 'client', mustChangePassword: false, codeSet: true, disabled: false, createdAt: '', sessions: 0, trusted: false, ...patch })
 
   it.each([
     [person({ disabled: true, sessions: 2 }), 'Disabled'],

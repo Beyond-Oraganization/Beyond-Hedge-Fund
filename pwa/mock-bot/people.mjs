@@ -40,7 +40,7 @@ const RULES = {
 const TRUSTED = new Set(['strategies', 'strategies bundle', 'market list', 'candles show', 'candles export', 'candles oldest'])
 /** Whether the person sees how a strategy trades (PersonRoles.SeesStrategies): staff, the owner, a client the fund trusts. */
 export const seesStrategies = (person) => !person || person.role !== 'client' || Boolean(person.trusted)
-const PEOPLE_COMMANDS = ['list', 'add', 'role', 'trust', 'disable', 'enable', 'reset-code', 'reset-password']
+const PEOPLE_COMMANDS = ['list', 'add', 'role', 'trust', 'change', 'delete', 'disable', 'enable', 'reset-code', 'reset-password']
 for (const command of PEOPLE_COMMANDS) RULES[`people ${command}`] = 'owner'
 
 function key(args) {
@@ -113,7 +113,7 @@ export function createPeople() {
     accountsOf: () => ['demo'],
 
     /** `people list|add|role|disable|enable|reset-code|reset-password` (Cli/Commands/PeopleCommands.cs), the owner's. */
-    manage(args) {
+    manage(args, by = null) {
       const asJson = args.includes('--json')
       const view = (p) => ({ login: p.login, name: p.name, email: p.email, role: p.role, mustChangePassword: p.mustChange, codeSet: p.codeSet, disabled: Boolean(p.disabled),
         createdAt: p.createdAt ?? '2026-11-01T09:00:00Z', sessions: [...tokens.values()].filter((t) => t.login === p.login).length, trusted: seesStrategies(p) })
@@ -145,6 +145,23 @@ export function createPeople() {
           person.trusted = person.role === role && Boolean(person.trusted)
           person.role = role
           return answer(null, `${login} is now ${role}.`, false)
+        }
+        case 'change': {
+          const name = option(args, '--name'), email = option(args, '--email'), noEmail = args.includes('--no-email')
+          if (name == null && email == null && !noEmail) return failed('Give what changes: --name, --email or --no-email.')
+          if (name != null && (!name.trim() || name.trim().length > 100)) return failed('A name has 1 to 100 characters.')
+          if (email != null && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return failed('That does not look like an e-mail address.')
+          if (name != null) person.name = name.trim()
+          person.email = noEmail ? null : email != null ? email.trim() : person.email
+          return answer(null, `${login} is now ${person.name}${person.email ? ` (${person.email})` : ', with no e-mail'}.`, false)
+        }
+        case 'delete': {
+          if (!args.includes('--yes') && !args.includes('-y')) return failed(`Deleting ${login} is for good: add --yes. (people disable stops a sign-in and can be undone.)`)
+          if (by && by === login) return failed('You cannot delete yourself: another owner, the terminal or the API key can.')
+          if (person.role === 'owner' && people.filter((p) => p.role === 'owner').length === 1) return failed(`${login} is the fund's only owner: make someone else owner first.`)
+          signOut(login)
+          people.splice(people.indexOf(person), 1)
+          return answer(null, `Deleted ${login} (${person.name}): they can no longer sign in, and are signed out everywhere. The audit log keeps what they did.`, false)
         }
         case 'trust': {
           const value = args[3]?.toLowerCase()
