@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createEngine, EngineCancelled, poolSize, shareSize, type EngineWorker } from './engine.ts'
+import { createEngine, EngineCancelled, poolSize, shareSize, sweepShareSize, type EngineWorker } from './engine.ts'
 import type { CandleColumns, DeviceScenarios, EngineRequest, ScenarioResult } from './types.ts'
 import type { WorkerCall, WorkerReply } from './worker.ts'
 
@@ -238,5 +238,58 @@ describe('several backtests at once (engine 2.9.0)', () => {
     await engine.combine({ currency: 'EUR', riskFree: 0, legs: [] })
 
     expect(started[0]!.kinds).toEqual(['combine'])
+  })
+})
+
+describe('a parameter sweep (engine 2.10.0)', () => {
+  const sweepRequest = { base: request, vary: [{ name: 'length', values: [10, 20, 30] }] }
+  const trial = (index: number) => ({ index, parameters: {}, ruleSet: 0, steps: [index], returns: '' })
+
+  it('shares the trials out a few at a time and puts them back in order, with the days of the first share', async () => {
+    const asked: { first: number; count: number }[] = []
+    const started: EngineWorker[] = []
+    const engine = createEngine({
+      base: 'https://app.test/engine/',
+      workers: 2,
+      spawn: () => {
+        const worker: EngineWorker = {
+          onmessage: null,
+          onerror: null,
+          terminate() {},
+          postMessage(call: WorkerCall) {
+            if (call.kind !== 'sweep') return
+            asked.push({ first: call.first, count: call.count })
+            const value = { ok: true, engine: '2.10.0', first: call.first, count: call.count, days: call.first === 0 ? ['2025-01-06'] : null, daysPerYear: 261, holdOutStart: 1,
+              trials: Array.from({ length: call.count }, (_, i) => trial(call.first + i)).reverse(), problems: [], computedMs: 3 }
+            setTimeout(() => worker.onmessage?.({ data: { id: call.id, value: JSON.stringify(value) } } as MessageEvent<WorkerReply>), 1)
+          },
+        }
+        started.push(worker)
+        return worker
+      },
+    })
+    const progress: number[] = []
+
+    const answer = await engine.sweep(sweepRequest, candles, 24, { onProgress: (done) => progress.push(done) })
+
+    expect(answer.ok && answer.trials.map((t) => t.index)).toEqual(Array.from({ length: 24 }, (_, i) => i))
+    expect(answer.ok && answer.days).toEqual(['2025-01-06'])
+    expect(asked.every((share) => share.count === 3)).toBe(true)
+    expect(progress.at(-1)).toBe(24)
+    expect(started).toHaveLength(2)
+  })
+
+  it('sizes its shares from one to ten trials', () => {
+    expect([sweepShareSize(1, 6), sweepShareSize(30, 6), sweepShareSize(1000, 6)]).toEqual([1, 1, 10])
+  })
+
+  it('sums the sweep up without waiting for the strategy pack', async () => {
+    const started: RecordingWorker[] = []
+    const engine = createEngine({ base: 'https://app.test/engine/', workers: 1, spawn: () => started[started.push(new RecordingWorker({ ok: true })) - 1]! })
+    engine.setStrategies({ sha256: 'd'.repeat(64), bytes: new Uint8Array([1]) })
+
+    await engine.summarizeSweep({ sweep: sweepRequest, axes: [], markets: [] })
+
+    expect(started[0]!.kinds).toEqual(['summarizeSweep'])
   })
 })

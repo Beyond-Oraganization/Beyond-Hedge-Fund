@@ -3,9 +3,10 @@ import { NavLink } from 'react-router'
 const TABS = [
   { to: '/backtest', label: 'One strategy', end: true },
   { to: '/backtest/combined', label: 'Several strategies', end: false },
+  { to: '/backtest/sweep', label: 'Parameter sweep', end: false },
 ]
 
-/** One strategy · Several strategies: the kinds of backtest, as links that look like the app's segmented choices. */
+/** One strategy · Several strategies · Parameter sweep: the kinds of backtest, as links that look like the app's segmented choices. */
 export function BacktestTabs() {
   return (
     <nav className="seg backtest-tabs" aria-label="Kind of backtest">

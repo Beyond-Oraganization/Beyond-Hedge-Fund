@@ -91,6 +91,20 @@ function phaseWords(phase: Phase): string {
   return 'Summing up the alternative histories…'
 }
 
+/** The setup a link carries (`set=length=20`, `rule=open long on …`), over the strategy's defaults. */
+function withLinkedSetup(config: StrategyConfig, params: URLSearchParams): StrategyConfig {
+  const set = params.getAll('set').flatMap((pair): [string, string][] => {
+    const [name = '', value] = pair.split('=')
+    return name in config.params && value != null ? [[name, value]] : []
+  })
+  const rules = params.getAll('rule')
+  return {
+    ...config,
+    params: { ...config.params, ...Object.fromEntries(set) },
+    rules: rules.length ? rules : config.rules,
+  }
+}
+
 /** A seed for one Monte Carlo: every worker makes its scenarios from it. */
 const newSeed = () => Math.floor(Math.random() * 2 ** 31)
 
@@ -149,11 +163,9 @@ export default function Backtest() {
   }, [strategies.data, staff])
   const rows = markets.data?.parsed.ok ? markets.data.parsed.value : null
   const [symbol, interval] = (params.get('market') ?? '').split(' ')
-  const draft =
-    edited ??
-    (definitions && rows
-      ? initialConfig(definitions, rows, { symbol, interval, strategy: params.get('strategy') })
-      : null)
+  // A link may carry a setup, as a sweep's "Open as backtest" does: `set=name=value` and `rule=…`, each as often as needed.
+  const linked = definitions && rows ? initialConfig(definitions, rows, { symbol, interval, strategy: params.get('strategy') }) : null
+  const draft = edited ?? (linked ? withLinkedSetup(linked, params) : null)
   const botVersion = status.data?.parsed.ok ? status.data.parsed.value.version : null
   const marketSymbol = draft?.market.split(' ')[0] ?? ''
   const stored = useMemo(() => (rows ? storedMarkets(rows) : []), [rows])

@@ -14,6 +14,9 @@ export type WorkerCall =
   | { id: number; base: string; kind: 'simulate'; request: string; candles: CandleColumns; first: number; count: number; conversion: ConversionColumns }
   | { id: number; base: string; kind: 'planConversion'; request: string }
   | { id: number; base: string; kind: 'combine'; request: string }
+  | { id: number; base: string; kind: 'planSweep'; request: string }
+  | { id: number; base: string; kind: 'sweep'; request: string; candles: CandleColumns; first: number; count: number; conversion: ConversionColumns }
+  | { id: number; base: string; kind: 'summarizeSweep'; request: string }
   | { id: number; base: string; kind: 'summarize'; request: string }
   | { id: number; base: string; kind: 'levels'; request: string; candles: CandleColumns; count: number }
 
@@ -30,6 +33,10 @@ type EngineExports = {
   PlanConversion: (request: string) => string
   /** Engine 2.9.0 on. */
   Combine: (request: string) => string
+  /** Engine 2.10.0 on. */
+  PlanSweep: (request: string) => string
+  Sweep: (request: string, ...columnsRangeConversion: [...Columns, first: number, count: number, conversionTimes: number[], conversionCloses: number[]]) => string
+  SummarizeSweep: (request: string) => string
   Summarize: (request: string) => string
   Levels: (request: string, ...columnsThenCount: [...Columns, count: number]) => string
 }
@@ -78,6 +85,12 @@ function answer(exports: EngineExports, call: WorkerCall): string {
       return exports.PlanConversion(call.request)
     case 'combine':
       return exports.Combine(call.request)
+    case 'planSweep':
+      return exports.PlanSweep(call.request)
+    case 'sweep':
+      return exports.Sweep(call.request, ...columns(call.candles), call.first, call.count, call.conversion.time, call.conversion.close)
+    case 'summarizeSweep':
+      return exports.SummarizeSweep(call.request)
     case 'summarize':
       return exports.Summarize(call.request)
     case 'levels':

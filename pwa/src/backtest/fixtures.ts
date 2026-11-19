@@ -1,4 +1,4 @@
-import type { BacktestAnalysis, CombinedResult, DeviceBacktest, DeviceScenarios, DeviceSummary, DeviceTrade, ReturnStats, ScenarioResult } from '../engine/types.ts'
+import type { BacktestAnalysis, CombinedResult, DeviceBacktest, DeviceScenarios, DeviceSummary, DeviceTrade, MarketSweepSummary, ReturnStats, ScenarioResult, SweepSummary, SweepTrial, TrialFigures } from '../engine/types.ts'
 
 /** Test data: engine answers as the bot's BacktestEngine.cs writes them. */
 
@@ -142,5 +142,47 @@ export function combinedResult(overrides: Partial<CombinedResult> = {}): Combine
     exposure: { averageLeverage: 0.31, maxLeverage: 0.47, maxGross: 950 },
     notes: ['The combined drawdowns are measured at each day’s end; each leg’s own backtest marks every candle.'],
     ...overrides,
+  }
+}
+
+/** A trial's figures over one part of the days, as SweepRun.cs writes them. */
+export function trialFigures(sharpe: number, overrides: Partial<TrialFigures> = {}): TrialFigures {
+  const kelly = { trades: 40, wins: 22, losses: 18, averageWin: 0.012, averageLoss: 0.008, winProbability: 0.55, lossProbability: 0.45, payoffRatio: 1.5, percent: 25, whyUnusable: null }
+  return { days: 120, returnPercent: sharpe * 4, sharpe, psr: 0.8, sortino: sharpe * 1.2, calmar: sharpe, maxDrawdownPercent: -4, trades: 40, winRate: 55, profitFactor: 1.3, beta: 0.2, alphaT: sharpe * 2, kellyGross: kelly, kellyNet: kelly, ...overrides }
+}
+
+/** The 12 trials of the sample strategy's sweep: length {10, 20, 30} × spread {2, 3} × lines {1, 2}, trial 7 the best in sample. */
+export function sweepTrials(): SweepTrial[] {
+  return Array.from({ length: 12 }, (_, index) => {
+    const steps = [Math.floor(index / 4), Math.floor(index / 2) % 2, index % 2]
+    const sharpe = index === 7 ? 1.4 : 0.2 + index * 0.05
+    return {
+      index, ruleSet: 0, steps, parameters: { length: [10, 20, 30][steps[0]!]!, spread: [2, 3][steps[1]!]!, lines: [1, 2][steps[2]!]! },
+      whole: trialFigures(sharpe), inSample: trialFigures(sharpe), outOfSample: trialFigures(sharpe / 2), longestHoldingDays: 2,
+      eligible: index !== 11, notEligibleBecause: index === 11 ? 'only 12 trades in sample, and it needs 30' : null, returns: '',
+    }
+  })
+}
+
+export const SWEEP_AXES = [{ name: 'length', values: [10, 20, 30] }, { name: 'spread', values: [2, 3] }, { name: 'lines', values: [1, 2] }]
+
+/** The summary of {@link sweepTrials} over XAUUSD 1h: promising, on a plateau, the overfitting checks run. */
+export function sweepSummary(overrides: Partial<MarketSweepSummary> = {}): SweepSummary {
+  return {
+    markets: [{
+      label: 'XAUUSD 1h', trials: 12, trialsCounted: 12, eligible: 11, objective: 'Sharpe',
+      chosen: { index: 7, inSampleObjective: 1.4, outOfSampleObjective: 0.7, outOfSampleRank: 1, rankedOutOfSample: 12 },
+      deflated: { sharpe: 1.4, luckSharpe: 0.83, dsr: 0.86, evidence: 'Promising', trials: 12, days: 420 },
+      overfitting: { pbo: 0.18, blocks: 16, splits: 12870, histogram: [0, 0, 0, 10, 40, 100, 300, 900, 2000, 3000, 3200, 2000, 900, 300, 80, 30, 10], points: [{ inSample: 1.2, outOfSample: 0.5 }, { inSample: 0.9, outOfSample: 0.6 }], degradationSlope: 0.4 },
+      cpcv: { groups: 6, testGroups: 2, embargoDays: 5, splits: [{ testGroups: [0, 1], chosen: 7, testSharpe: 0.9 }], pathSharpes: [0.8, 0.6, 1.1, 0.4, 0.7] },
+      walkForward: { steps: [{ testStart: '2025-03-01', testEnd: '2025-04-30', chosen: 7, testSharpe: 0.9 }], chainedSharpe: 0.75, chained: [{ day: '2025-03-01', value: 1 }, { day: '2025-03-02', value: 1.01 }] },
+      crossValidatedMissing: null,
+      plateau: { score: 0.78, kind: 'Plateau', neighbours: 3 },
+      sensitivities: [{ name: 'length', perStep: 0.2, profile: [{ value: 10, objective: 0.4 }, { value: 20, objective: 1.4 }, { value: 30, objective: 0.9 }] }, { name: 'spread', perStep: -0.3, profile: [{ value: 2, objective: 0.6 }, { value: 3, objective: 1.4 }] }, { name: 'lines', perStep: 0.1, profile: [{ value: 1, objective: 1.1 }, { value: 2, objective: 1.4 }] }],
+      heatMap: { x: 'length', y: 'spread', xValues: [10, 20, 30], yValues: [2, 3], cells: [0, 1, 2].flatMap((x) => [0, 1].map((y) => ({ x, y, trial: x * 4 + y * 2 + 1, inSample: x * 4 + y * 2 + 1 === 7 ? 1.4 : 0.3 + x * 0.1, outOfSample: 0.2 }))) },
+      verdict: 'Promising', reasons: ['deflated Sharpe 0.86 over 12 trials', 'probability of overfitting 0.18', 'on a plateau (0.78)', 'Sharpe 0.70 in the hold-out'],
+      ...overrides,
+    }],
+    crossMarkets: [],
   }
 }

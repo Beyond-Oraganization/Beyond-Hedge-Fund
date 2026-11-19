@@ -13,10 +13,25 @@ import type {
   SimulateAnswer,
   SummaryAnswer,
   SummaryRequest,
+  SweepAnswer,
+  SweepPlanAnswer,
+  SweepRequest,
+  SweepSummaryAnswer,
+  SweepSummaryRequest,
+  SweepTrial,
+  SweepProblem,
+  EngineFailure,
+  DeviceSweep as DeviceSweepShare,
 } from './types.ts'
 
 /** No conversion: what a request without `conversion` sends. */
 export const noConversion: ConversionColumns = { time: [], close: [] }
+
+/** A sweep over one market, all its shares put together. */
+export type SweepRun = { ok: true; engine: string; days: string[]; daysPerYear: number; holdOutStart: number; trials: SweepTrial[]; problems: SweepProblem[]; computedMs: number }
+
+/** Trials per sweep call: one to ten, about a quarter of an even share per worker, so progress shows often and a slow share holds up little. */
+export const sweepShareSize = (trials: number, workers: number) => Math.max(1, Math.min(10, Math.round(trials / (workers * 4))))
 
 /** One backtest of {@link Engine.backtestAll}: a request, its candles, and its conversion's candles when it has one. */
 export type BacktestJob = { request: EngineRequest; candles: CandleColumns; conversion?: ConversionColumns }
@@ -53,6 +68,20 @@ export interface Engine {
   backtestAll(jobs: BacktestJob[], options?: { signal?: AbortSignal; onProgress?: (done: number, total: number) => void }): Promise<EngineAnswer[]>
   /** Adds up the legs of a combined backtest (engine 2.9.0 on): no candles, just their daily equity. */
   combine(request: CombineRequest, signal?: AbortSignal): Promise<CombineAnswer>
+  /** How many trials a sweep has, its axes in the grid's order, and the trials the strategy refuses (engine 2.10.0 on). */
+  planSweep(request: SweepRequest, signal?: AbortSignal): Promise<SweepPlanAnswer>
+  /**
+   * Runs every trial of a sweep over one market, shared out to the workers a few at a time; `onProgress` hears how many are
+   * done after each share. The trials come back in their order, with the sweep's days.
+   */
+  sweep(
+    request: SweepRequest,
+    candles: CandleColumns,
+    trials: number,
+    options?: { signal?: AbortSignal; onProgress?: (done: number, total: number) => void; conversion?: ConversionColumns },
+  ): Promise<SweepRun | EngineFailure>
+  /** Every cross-trial statistic of a sweep, once (engine 2.10.0 on). */
+  summarizeSweep(request: SweepSummaryRequest, signal?: AbortSignal): Promise<SweepSummaryAnswer>
   /** Which of the device's markets turn the symbol's quote currency into another (engine 2.8.0 on), or why none does. */
   planConversion(request: ConversionPlanRequest, signal?: AbortSignal): Promise<ConversionPlanAnswer>
   /** Sums up the scenarios and ranks the real history among them. */
@@ -195,7 +224,7 @@ export function createEngine({ base = engineBase(), workers = poolSize(), spawn 
   }
 
   const call = async (index: number, message: Message, signal?: AbortSignal) => {
-    if (message.kind !== 'summarize' && message.kind !== 'version' && message.kind !== 'planConversion' && message.kind !== 'combine') await ensureLoaded(index, signal)
+    if (!['summarize', 'version', 'planConversion', 'combine', 'summarizeSweep'].includes(message.kind)) await ensureLoaded(index, signal)
     return send(index, message, signal)
   }
 
@@ -251,6 +280,45 @@ export function createEngine({ base = engineBase(), workers = poolSize(), spawn 
         return true
       })
       return answers
+    },
+
+    async planSweep(request, signal) {
+      return JSON.parse(await call(0, { kind: 'planSweep', request: JSON.stringify(request) }, signal)) as SweepPlanAnswer
+    },
+
+    async sweep(request, candles, count, { signal, onProgress, conversion = noConversion } = {}) {
+      const text = JSON.stringify(request)
+      const shares: DeviceSweepShare[] = []
+      let failure: EngineFailure | null = null
+      let done = 0
+      await shareOut(count, sweepShareSize(count, workers), workers, async (index, first, share) => {
+        const answer = JSON.parse(await call(index, { kind: 'sweep', request: text, candles, first, count: share, conversion }, signal)) as SweepAnswer
+        if (!answer.ok) {
+          failure = answer
+          return false
+        }
+        shares.push(answer)
+        done += share
+        onProgress?.(done, count)
+        return true
+      })
+      if (failure) return failure
+      const head = shares.find((share) => share.days)
+      if (!head?.days) throw new Error('The engine ran no share of the sweep.')
+      return {
+        ok: true,
+        engine: head.engine,
+        days: head.days,
+        daysPerYear: head.daysPerYear,
+        holdOutStart: head.holdOutStart,
+        trials: shares.flatMap((share) => share.trials).sort((a, b) => a.index - b.index),
+        problems: shares.flatMap((share) => share.problems).sort((a, b) => a.trial - b.trial),
+        computedMs: shares.reduce((sum, share) => sum + share.computedMs, 0),
+      }
+    },
+
+    async summarizeSweep(request, signal) {
+      return JSON.parse(await call(0, { kind: 'summarizeSweep', request: JSON.stringify(request) }, signal)) as SweepSummaryAnswer
     },
 
     async combine(request, signal) {
