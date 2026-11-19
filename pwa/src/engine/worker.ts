@@ -4,14 +4,15 @@
  * several of these at once, each with its share of the scenarios.
  */
 
-import type { CandleColumns } from './types.ts'
+import type { CandleColumns, ConversionColumns } from './types.ts'
 
 export type WorkerCall =
   | { id: number; base: string; kind: 'version' }
   /** The strategy pack's bytes (the engine ships without strategies): loaded once per worker, before its first backtest. */
   | { id: number; base: string; kind: 'load'; pack: number[] }
-  | { id: number; base: string; kind: 'backtest'; request: string; candles: CandleColumns }
-  | { id: number; base: string; kind: 'simulate'; request: string; candles: CandleColumns; first: number; count: number }
+  | { id: number; base: string; kind: 'backtest'; request: string; candles: CandleColumns; conversion: ConversionColumns }
+  | { id: number; base: string; kind: 'simulate'; request: string; candles: CandleColumns; first: number; count: number; conversion: ConversionColumns }
+  | { id: number; base: string; kind: 'planConversion'; request: string }
   | { id: number; base: string; kind: 'summarize'; request: string }
   | { id: number; base: string; kind: 'levels'; request: string; candles: CandleColumns; count: number }
 
@@ -22,8 +23,10 @@ type Columns = [openTimes: number[], open: number[], high: number[], low: number
 type EngineExports = {
   Version: () => string
   LoadStrategies: (pack: number[]) => string
-  Backtest: (request: string, ...columns: Columns) => string
-  Simulate: (request: string, ...columnsThenRange: [...Columns, first: number, count: number]) => string
+  /** Engine 2.8.0 on: the conversion's open times and closes follow the candles (the bot's ADR 0007). */
+  Backtest: (request: string, ...columnsThenConversion: [...Columns, conversionTimes: number[], conversionCloses: number[]]) => string
+  Simulate: (request: string, ...columnsRangeConversion: [...Columns, first: number, count: number, conversionTimes: number[], conversionCloses: number[]]) => string
+  PlanConversion: (request: string) => string
   Summarize: (request: string) => string
   Levels: (request: string, ...columnsThenCount: [...Columns, count: number]) => string
 }
@@ -65,9 +68,11 @@ function answer(exports: EngineExports, call: WorkerCall): string {
     case 'load':
       return exports.LoadStrategies(call.pack)
     case 'backtest':
-      return exports.Backtest(call.request, ...columns(call.candles))
+      return exports.Backtest(call.request, ...columns(call.candles), call.conversion.time, call.conversion.close)
     case 'simulate':
-      return exports.Simulate(call.request, ...columns(call.candles), call.first, call.count)
+      return exports.Simulate(call.request, ...columns(call.candles), call.first, call.count, call.conversion.time, call.conversion.close)
+    case 'planConversion':
+      return exports.PlanConversion(call.request)
     case 'summarize':
       return exports.Summarize(call.request)
     case 'levels':

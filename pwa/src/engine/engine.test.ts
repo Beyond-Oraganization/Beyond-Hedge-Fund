@@ -190,3 +190,28 @@ describe('the strategy pack in the engine', () => {
     expect(started[1]!.kinds).toEqual(['backtest'])
   })
 })
+
+describe('a backtest in another currency (engine 2.8.0)', () => {
+  it('sends the conversion’s candles with every share of a Monte Carlo, and none without one', async () => {
+    const converted = pool(2)
+    const plain = pool(2)
+    const conversion = { time: [1, 2], close: [1.08, 1.1] }
+
+    await converted.engine.simulate(request, candles, 4, { conversion })
+    await plain.engine.simulate(request, candles, 4)
+
+    const sent = (started: FakeWorker[]) => started.flatMap((worker) => worker.calls.map((call) => call.conversion))
+    expect(sent(converted.started).every((columns) => columns === conversion)).toBe(true)
+    expect(sent(plain.started).every((columns) => columns.time.length === 0 && columns.close.length === 0)).toBe(true)
+  })
+
+  it('plans the conversion without waiting for the strategy pack', async () => {
+    const started: RecordingWorker[] = []
+    const engine = createEngine({ base: 'https://app.test/engine/', workers: 1, spawn: () => started[started.push(new RecordingWorker({ ok: true })) - 1]! })
+    engine.setStrategies({ sha256: 'b'.repeat(64), bytes: new Uint8Array([1]) })
+
+    await engine.planConversion({ symbol: 'XAUUSD', currency: 'EUR', markets: ['EURUSD'] })
+
+    expect(started[0]!.kinds).toEqual(['planConversion'])
+  })
+})

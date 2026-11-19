@@ -142,6 +142,33 @@ test('backtests on this device with the bot’s engine: the balance, the trade r
   await expect(copies.getByText('None yet.')).toBeVisible()
 })
 
+test('backtests like the broker with the bot’s engine: costs, the next open, a budget, and in EUR through EURUSD', async ({ page }) => {
+  await connected(page)
+  await page.goto('#/backtest')
+  await page.getByText('Costs and conditions').click()
+  await page.getByLabel('Bid–ask spread').fill('0,3')
+  await page.getByLabel('Commission, % a side').fill('0.0035')
+  await page.getByLabel('Swap long, % a year').fill('-4')
+  await page.getByRole('radio', { name: 'The next candle’s open' }).check()
+  await page.getByRole('checkbox', { name: 'Trade like a live budget of the starting balance' }).check()
+  await page.getByLabel('Measured in').selectOption('EUR')
+  // The engine plans the conversion over the bot's markets: the mock bot stores EURUSD 4h.
+  await expect(page.getByText('Converted at each moment: ÷ EURUSD 4h.')).toBeVisible({ timeout: 60_000 })
+  await page.getByRole('radio', { name: '100 scenarios' }).check()
+  await page.getByRole('button', { name: 'Run the backtest' }).click()
+  await expect(page.getByRole('heading', { name: 'Monte Carlo' })).toBeVisible({ timeout: 90_000 })
+  // The figures are in EUR, after the costs, and say what the run traded under.
+  await expect(page.locator('.figure').filter({ hasText: 'Return' })).toContainText(/EUR of costs/)
+  await expect(page.getByText(/EUR by the closed trades$/)).toBeAttached()
+  await expect(page.getByText(/without costs, .* with these, .* with twice/)).toBeAttached()
+  await expect(page.getByText(/^spread 0\.3, commission 0\.0035 % a side, swap -4 % long \/ 0 % short a year, fill at the next open, budget 1,000, in EUR \(÷ EURUSD\)$/)).toBeAttached()
+  await expect(page.getByText(/of 100 alternative pasts ended above the starting balance/)).toBeVisible()
+  // The costs are this market's on this device now: the form keeps them.
+  await page.reload()
+  await page.getByText('Costs and conditions').click()
+  await expect(page.getByLabel('Bid–ask spread')).toHaveValue('0,3')
+})
+
 test('backtests rules of its own, built from the strategy’s syntax, and shows the bot’s message for a band it has not got', async ({ page }) => {
   await connected(page)
   await page.goto('#/backtest')
