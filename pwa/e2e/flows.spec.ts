@@ -169,6 +169,32 @@ test('backtests like the broker with the bot’s engine: costs, the next open, a
   await expect(page.getByLabel('Bid–ask spread')).toHaveValue('0,3')
 })
 
+test('combines several strategies with the bot’s engine: two legs in EUR, their betas per market, how they moved together, and the run kept', async ({ page }) => {
+  await connected(page)
+  await page.goto('#/backtest')
+  await page.getByRole('link', { name: 'Several strategies' }).click()
+  for (const market of ['XAUUSD 1h', 'EURUSD 4h']) {
+    await page.getByRole('button', { name: 'Add a leg' }).click()
+    const sheet = page.getByRole('dialog', { name: 'Add a leg' })
+    await sheet.getByLabel('Market').selectOption(market)
+    await sheet.getByRole('button', { name: 'Add the leg' }).click()
+    await expect(sheet).toBeHidden()
+  }
+  await page.getByRole('button', { name: 'Run the combined backtest' }).click()
+  // Each leg copies its market (and gold's EURUSD for the conversion) and runs in a worker; then the engine adds them up.
+  await expect(page.getByRole('heading', { name: 'sample on XAUUSD 1h + sample on EURUSD 4h' })).toBeVisible({ timeout: 90_000 })
+  await expect(page.locator('.figure > .label').filter({ hasText: 'Diversification' })).toBeVisible()
+  await expect(page.locator('p.verdict')).toContainText(/likely above 0|No Sharpe ratio/)
+  const legs = page.getByRole('table', { name: 'The legs' }).or(page.getByRole('list', { name: 'The legs' }))
+  await expect(legs.getByText('sample on EURUSD 4h')).toBeVisible()
+  await expect(page.getByRole('img', { name: /^Correlations of the legs’ daily returns, on every day: sample on XAUUSD 1h and sample on EURUSD 4h: -?\d\.\d\d/ })).toBeVisible()
+  await expect(page.getByRole('img', { name: /^Combined equity at each day’s end, from 2,000\.00 EUR to/ })).toBeVisible()
+  const splits = page.getByRole('table', { name: 'Budget splits' }).or(page.getByRole('list', { name: 'Budget splits' }))
+  await expect(splits.getByText('Equal money')).toBeVisible()
+  const saved = page.getByRole('table', { name: 'Saved combined backtests' }).or(page.getByRole('list', { name: 'Saved combined backtests' }))
+  await expect(saved.getByText('sample on XAUUSD 1h + sample on EURUSD 4h')).toBeVisible()
+})
+
 test('backtests rules of its own, built from the strategy’s syntax, and shows the bot’s message for a band it has not got', async ({ page }) => {
   await connected(page)
   await page.goto('#/backtest')

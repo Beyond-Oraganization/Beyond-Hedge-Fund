@@ -2,26 +2,41 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { useBot, useRead } from '../api/bot.ts'
 import { CommandFailure } from '../api/client.ts'
-import { cmd } from '../api/commands.ts'
-import type { SessionSizing } from '../api/types.ts'
-import { curveByTime, endedAbove, isDeviceRun, keep, keepScenarios, kellyShare, METHOD_NAMES, type DeviceRun, type KeptScenarios, type SavedRun } from '../backtest/runs.ts'
+import {
+  curveByTime,
+  endedAbove,
+  isDeviceRun,
+  keep,
+  keepScenarios,
+  METHOD_NAMES,
+  type DeviceRun,
+  type KeptScenarios,
+  type SavedRun,
+} from '../backtest/runs.ts'
 import { clearRuns, loadDetails, loadRuns, saveRun } from '../backtest/saved.ts'
 import {
   conditionErrors,
   conditionsRequest,
   costsKey,
   costsPart,
-  hopsFor,
   isPlain,
   NO_CONDITIONS,
   quoteOf,
-  requestHops,
   routeWords,
   storedMarkets,
   type ConditionsForm,
   type PlannedHop,
 } from '../backtest/conditions.ts'
+import {
+  planRoute,
+  prepareCandles,
+  prepareConversion,
+  prepareKelly,
+  prepareWords,
+  type PreparePhase,
+} from '../backtest/prepare.ts'
 import { useMarketCosts } from '../backtest/useMarketCosts.ts'
+import { BacktestTabs } from '../components/backtest/BacktestTabs.tsx'
 import { ConditionsFields } from '../components/backtest/ConditionsFields.tsx'
 import { FailurePanel } from '../components/Answer.tsx'
 import { MonteCarloSection, ReportFigures } from '../components/backtest/Report.tsx'
@@ -34,25 +49,30 @@ import { describedBy, Field, Segmented } from '../components/Field.tsx'
 import { ScreenHead } from '../components/ScreenHead.tsx'
 import { StrategyForm } from '../components/StrategyForm.tsx'
 import { Button, ButtonLink, Callout, EmptyState, Section, Skeleton } from '../components/ui.tsx'
-import { readCopy, updateCopy, type CopyInfo } from '../data/candles.ts'
 import { useEngine, useEngineVersion } from '../engine/context.ts'
-import { EngineCancelled, type Engine } from '../engine/engine.ts'
-import type { ConversionColumns, ConversionHop, PathMethod } from '../engine/types.ts'
+import { EngineCancelled } from '../engine/engine.ts'
+import type { PathMethod } from '../engine/types.ts'
 import { fmtCount, fmtMoney, fmtPercent, fmtSignedMoney, fmtSignedPercent, fmtTime, tone } from '../format.ts'
 import { useMarkets, useStatus, useStrategies } from '../hooks/data.ts'
 import { keepsEverything } from '../storage/local-store.ts'
 import { db } from '../state/db.ts'
 import { offerLink } from '../features/menu/menu.ts'
 import { PublishCard } from '../features/published/PublishCard.tsx'
-import { applySetup, configFromInput, initialConfig, toInput, validateConfig, type StrategyConfig } from '../strategy/config.ts'
+import {
+  applySetup,
+  configFromInput,
+  initialConfig,
+  toInput,
+  validateConfig,
+  type StrategyConfig,
+} from '../strategy/config.ts'
 
 const dateOrNull = (text: string) => (text ? Date.parse(`${text}T00:00:00Z`) : null)
 /** A UTC time as the engine reads it, without "Z". */
 const utc = (ms: number | null) => (ms == null ? null : new Date(ms).toISOString().slice(0, 19))
 
 type Phase =
-  | { step: 'candles'; market: string; info: CopyInfo | null }
-  | { step: 'kelly' }
+  | PreparePhase
   | { step: 'engine' }
   | { step: 'scenarios'; done: number; total: number; method: PathMethod }
   | { step: 'summary' }
@@ -64,33 +84,23 @@ const METHODS: { value: PathMethod; label: string }[] = [
 ]
 
 function phaseWords(phase: Phase): string {
-  if (phase.step === 'candles')
-    return phase.info
-      ? `Copying ${phase.market} candles from the bot: ${fmtCount(phase.info.count)}, up to ${fmtTime(phase.info.newest)} UTC…`
-      : `Bringing this device’s ${phase.market} candles up to date…`
-  if (phase.step === 'kelly') return 'Asking the bot for the Kelly sizing it would trade with…'
+  if (phase.step === 'candles' || phase.step === 'kelly') return prepareWords(phase)
   if (phase.step === 'engine') return 'Backtesting on this device…'
-  if (phase.step === 'scenarios') return `Backtesting alternative price histories by ${METHOD_NAMES[phase.method]}: ${fmtCount(phase.done)} of ${fmtCount(phase.total)} done…`
+  if (phase.step === 'scenarios')
+    return `Backtesting alternative price histories by ${METHOD_NAMES[phase.method]}: ${fmtCount(phase.done)} of ${fmtCount(phase.total)} done…`
   return 'Summing up the alternative histories…'
-}
-
-/**
- * The stored markets that turn the symbol's quote currency into `currency`, as the engine plans them, or why there are
- * none. The engine plans; this picks each market's shortest stored interval.
- */
-async function planRoute(engine: Engine, symbol: string, currency: string, stored: ReturnType<typeof storedMarkets>, signal?: AbortSignal): Promise<{ hops: PlannedHop[] } | { error: string }> {
-  const plan = await engine.planConversion({ symbol, currency, markets: [...new Set(stored.map((market) => market.symbol))] }, signal)
-  if (!plan.ok) return { error: plan.error.message }
-  const hops = hopsFor(plan.steps, stored)
-  return hops ? { hops } : { error: `No stored market converts ${plan.from} into ${plan.to}.` }
 }
 
 /** A seed for one Monte Carlo: every worker makes its scenarios from it. */
 const newSeed = () => Math.floor(Math.random() * 2 ** 31)
 
 /** "sample on XAUUSD 1h". */
-const titleOf = (run: SavedRun) => (isDeviceRun(run) ? `${run.result.strategy} on ${run.result.market.symbol} ${run.result.market.interval}` : `${run.report.strategy} on ${run.report.market}`)
-const marketOf = (run: SavedRun) => (isDeviceRun(run) ? `${run.result.market.symbol} ${run.result.market.interval}` : run.report.market)
+const titleOf = (run: SavedRun) =>
+  isDeviceRun(run)
+    ? `${run.result.strategy} on ${run.result.market.symbol} ${run.result.market.interval}`
+    : `${run.report.strategy} on ${run.report.market}`
+const marketOf = (run: SavedRun) =>
+  isDeviceRun(run) ? `${run.result.market.symbol} ${run.result.market.interval}` : run.report.market
 
 export default function Backtest() {
   const { connection } = useBot()
@@ -131,16 +141,26 @@ export default function Backtest() {
   const definitions = useMemo(() => {
     const all = strategies.data?.parsed.ok ? strategies.data.parsed.value : null
     if (!all || staff) return all
-    return all.map((d) => (d.sizing ? { ...d, sizing: { ...d.sizing, methods: d.sizing.methods.filter((method) => method.name !== 'kelly') } } : d))
+    return all.map((d) =>
+      d.sizing
+        ? { ...d, sizing: { ...d.sizing, methods: d.sizing.methods.filter((method) => method.name !== 'kelly') } }
+        : d,
+    )
   }, [strategies.data, staff])
   const rows = markets.data?.parsed.ok ? markets.data.parsed.value : null
   const [symbol, interval] = (params.get('market') ?? '').split(' ')
-  const draft = edited ?? (definitions && rows ? initialConfig(definitions, rows, { symbol, interval, strategy: params.get('strategy') }) : null)
+  const draft =
+    edited ??
+    (definitions && rows
+      ? initialConfig(definitions, rows, { symbol, interval, strategy: params.get('strategy') })
+      : null)
   const botVersion = status.data?.parsed.ok ? status.data.parsed.value.version : null
   const marketSymbol = draft?.market.split(' ')[0] ?? ''
   const stored = useMemo(() => (rows ? storedMarkets(rows) : []), [rows])
   // A market's costs come back when it is chosen again; a run remembers the ones it used.
-  const remember = useMarketCosts(connection?.id, marketSymbol || undefined, (costs) => setConditions((form) => ({ ...form, ...costs })))
+  const remember = useMarketCosts(connection?.id, marketSymbol || undefined, (costs) =>
+    setConditions((form) => ({ ...form, ...costs })),
+  )
   const routeKey = conditions.currency && marketSymbol ? `${marketSymbol}:${conditions.currency}` : ''
   useEffect(() => {
     if (!routeKey || !stored.length) return
@@ -151,7 +171,13 @@ export default function Backtest() {
         if (!current) return
         setRoute(
           'hops' in planned
-            ? { key: routeKey, hops: planned.hops, text: planned.hops.length ? `Converted at each moment: ${routeWords(planned.hops)}.` : `${symbol} is already priced in ${currency}.` }
+            ? {
+                key: routeKey,
+                hops: planned.hops,
+                text: planned.hops.length
+                  ? `Converted at each moment: ${routeWords(planned.hops)}.`
+                  : `${symbol} is already priced in ${currency}.`,
+              }
             : { key: routeKey, hops: null, text: planned.error },
         )
       })
@@ -183,34 +209,6 @@ export default function Backtest() {
     if (details) setCurrent({ ...run, monteCarlo: { ...run.monteCarlo, details } })
   }
 
-  /**
-   * The conversion of a run in another currency: the engine's plan, each hop's market copied up to date on this device,
-   * and their candles one after another as the engine takes them. None for the market's own currency.
-   */
-  const prepareConversion = async (symbol: string, signal: AbortSignal): Promise<{ conversion: { currency: string; hops: ConversionHop[] } | null; columns: ConversionColumns | undefined }> => {
-    if (!conditions.currency || !connection) return { conversion: null, columns: undefined }
-    const planned = await planRoute(engine(), symbol, conditions.currency, stored, signal)
-    if ('error' in planned) throw new Error(planned.error)
-    if (!planned.hops.length) return { conversion: null, columns: undefined }
-    const columns: ConversionColumns = { time: [], close: [] }
-    const counts: number[] = []
-    for (const hop of planned.hops) {
-      if (hop.market === 'own') {
-        counts.push(0)
-        continue
-      }
-      const through = `${hop.market.symbol} ${hop.market.interval}`
-      setPhase({ step: 'candles', market: through, info: null })
-      await updateCopy(connection.id, through, read, { signal, onProgress: (info) => setPhase({ step: 'candles', market: through, info }) })
-      const copy = await readCopy(connection.id, through)
-      if (!copy) throw new Error(`This device has no ${through} candles to convert with.`)
-      columns.time.push(...copy.time)
-      columns.close.push(...copy.close)
-      counts.push(copy.time.length)
-    }
-    return { conversion: { currency: conditions.currency, hops: requestHops(planned.hops, counts) }, columns }
-  }
-
   /** Brings this device's candles up to date, asks the bot for its Kelly when the sizing needs it, then backtests here. */
   const start = async () => {
     setTouched(true)
@@ -224,19 +222,19 @@ export default function Backtest() {
     setFailure(null)
     setProblem(null)
     try {
-      setPhase({ step: 'candles', market, info: null })
-      await updateCopy(connection.id, market, read, { signal: controller.signal, onProgress: (info) => setPhase({ step: 'candles', market, info }) })
-      const candles = await readCopy(connection.id, market)
-      if (!candles) throw new Error(`This device has no ${market} candles.`)
+      const preparing = { signal: controller.signal, onPhase: setPhase }
+      const candles = await prepareCandles(connection.id, market, read, preparing)
       void remember(conditions)
-      const { conversion, columns } = await prepareConversion(input.symbol, controller.signal)
-      const share = kellyShare(input.sizing)
-      let kelly: SessionSizing['kelly'] = null
-      if (share != null) {
-        setPhase({ step: 'kelly' })
-        kelly = ((await read(cmd.kelly(input, share), controller.signal)).json as SessionSizing | null)?.kelly ?? null
-        if (!kelly) throw new Error('The bot’s Kelly sizing could not be read.')
-      }
+      const { conversion, columns } = await prepareConversion(
+        engine(),
+        connection.id,
+        read,
+        input.symbol,
+        conditions.currency,
+        stored,
+        preparing,
+      )
+      const kelly = await prepareKelly(input, read, preparing)
       setPhase({ step: 'engine' })
       const request = {
         strategy: input.strategy,
@@ -257,27 +255,47 @@ export default function Backtest() {
       let monteCarlo: KeptScenarios | null = null
       if (asked) {
         setPhase({ step: 'scenarios', done: 0, total: asked, method })
-        const simulated = await engine().simulate({ ...request, scenarios: { method, seed: newSeed() } }, candles, asked, {
-          signal: controller.signal,
-          onProgress: (done, total) => setPhase({ step: 'scenarios', done, total, method }),
-          conversion: columns,
-        })
+        const simulated = await engine().simulate(
+          { ...request, scenarios: { method, seed: newSeed() } },
+          candles,
+          asked,
+          {
+            signal: controller.signal,
+            onProgress: (done, total) => setPhase({ step: 'scenarios', done, total, method }),
+            conversion: columns,
+          },
+        )
         if (!simulated.ok) return setProblem(simulated.error.message)
         setPhase({ step: 'summary' })
-        const summed = await engine().summarize({ initialBalance: Number(balance), real: answer.realScenario, results: simulated.results }, controller.signal)
+        const summed = await engine().summarize(
+          { initialBalance: Number(balance), real: answer.realScenario, results: simulated.results },
+          controller.signal,
+        )
         if (!summed.ok) return setProblem(summed.error.message)
         monteCarlo = keepScenarios(answer, simulated, summed.summary)
       }
       const run: DeviceRun = {
-        kind: 'device', id: `${Date.now()}`, at: Date.now(), input, balance: Number(balance), from: dateOrNull(from), to: dateOrNull(to),
-        scenarios: asked, method, result: keep(answer), monteCarlo, ...(isPlain(conditions) ? {} : { conditions }),
+        kind: 'device',
+        id: `${Date.now()}`,
+        at: Date.now(),
+        input,
+        balance: Number(balance),
+        from: dateOrNull(from),
+        to: dateOrNull(to),
+        scenarios: asked,
+        method,
+        result: keep(answer),
+        monteCarlo,
+        ...(isPlain(conditions) ? {} : { conditions }),
       }
       setCurrent(run)
       setSaved(await saveRun(connection.id, run, { keepEverything: keepsEverything() }))
     } catch (error) {
       if (error instanceof EngineCancelled || (error instanceof CommandFailure && error.kind === 'cancelled')) return
       if (error instanceof CommandFailure && error.kind === 'usage')
-        setProblem(`This bot cannot hand out its candles or its Kelly sizing yet (${error.message}) Backtests on this device need bot 2.1.0 or later: update the bot.`)
+        setProblem(
+          `This bot cannot hand out its candles or its Kelly sizing yet (${error.message}) Backtests on this device need bot 2.1.0 or later: update the bot.`,
+        )
       else if (error instanceof CommandFailure) setFailure(error)
       else setProblem((error as Error).message)
     } finally {
@@ -288,13 +306,20 @@ export default function Backtest() {
 
   const compared = saved.filter((run) => compare.includes(run.id))
   const device = current && isDeviceRun(current) ? current : null
-  const curve = device ? curveByTime(device.result.curve) : current && !isDeviceRun(current) ? (current.curve?.map((p) => ({ time: p.time, value: p.balance })) ?? null) : null
+  const curve = device
+    ? curveByTime(device.result.curve)
+    : current && !isDeviceRun(current)
+      ? (current.curve?.map((p) => ({ time: p.time, value: p.balance })) ?? null)
+      : null
   const equityDays = device?.result.equityDays
   // The marked equity, solid, and the balance after each close, dashed: both in money, on one axis.
   const balanceLines = useMemo<ChartLine[]>(
     () =>
       equityDays?.length
-        ? [{ name: 'Equity', points: equityDays.map(([time, value]) => ({ time, value })), width: 3 }, { name: 'Balance', points: curve ?? [], dashed: true }]
+        ? [
+            { name: 'Equity', points: equityDays.map(([time, value]) => ({ time, value })), width: 3 },
+            { name: 'Balance', points: curve ?? [], dashed: true },
+          ]
         : [{ name: 'Balance', points: curve ?? [], width: 3 }],
     [equityDays, curve],
   )
@@ -307,94 +332,133 @@ export default function Backtest() {
         lead="This device replays the strategy over its own copy of the bot’s candles, with the bot’s own code, then backtests it again on alternative price histories of the same dates. The bot only hands out the candles, and its Kelly sizing when you size by Kelly."
       />
       <Section variant="alt" label="Backtest settings">
-        {!definitions || !rows || !draft ? (
-          strategies.error || markets.error ? <FailurePanel failure={(strategies.error ?? markets.error)!} /> : <Skeleton lines={5} />
-        ) : (
-          <form
-            className="stack"
-            noValidate
-            onSubmit={(event) => {
-              event.preventDefault()
-              void start()
-            }}
-          >
-            <StrategyForm definitions={definitions} markets={rows} config={draft} onChange={setDraft} errors={touched ? errors : {}} />
-            <div className="form-grid">
-              <Field
-                id={ids.balance}
-                label={conditions.budgeted ? 'Budget' : 'Starting balance'}
-                error={touched ? errors.balance : undefined}
-                hint={`Simulated; in ${conditions.currency || (quoteOf(marketSymbol) ?? 'the symbol’s quote currency')}.`}
-              >
-                <input
-                  id={ids.balance}
-                  className="mono"
-                  type="number"
-                  min="1"
-                  step="any"
-                  inputMode="decimal"
-                  value={balance}
-                  onChange={(event) => setBalance(event.target.value)}
-                  aria-describedby={describedBy(ids.balance, 'hint', touched ? errors.balance : null)}
-                />
-              </Field>
-              <Field id={ids.from} label="From (UTC, optional)" hint="The first stored candle when empty.">
-                <input id={ids.from} type="date" value={from} onChange={(event) => setFrom(event.target.value)} aria-describedby={describedBy(ids.from, 'hint')} />
-              </Field>
-              <Field id={ids.to} label="To (UTC, optional)" error={touched ? errors.to : undefined} hint="The newest candle when empty.">
-                <input id={ids.to} type="date" value={to} onChange={(event) => setTo(event.target.value)} aria-describedby={describedBy(ids.to, 'hint', touched ? errors.to : null)} />
-              </Field>
-            </div>
-            <ConditionsFields form={conditions} onChange={setConditions} errors={touched ? costErrors : {}} symbol={marketSymbol} route={routeShown} />
-            <Segmented
-              name="monte-carlo"
-              legend="Monte Carlo"
-              value={scenarios}
-              onChange={setScenarios}
-              options={SCENARIOS.map((value) => ({ value, label: value === '0' ? 'Off' : `${fmtCount(Number(value))} scenarios` }))}
-              hint="How many alternative price histories of the same dates to backtest the strategy on, each made up at random. 200 take seconds on a computer, longer on a phone."
-            />
-            {scenarios !== '0' ? (
-              <Segmented
-                name="price-paths"
-                legend="Alternative histories by"
-                value={method}
-                onChange={setMethod}
-                options={METHODS}
-                hint="The bootstrap glues real candle moves in random blocks, so real tails and calm or wild spells stay. Brownian motion is a calm random walk with the real drift and volatility: a baseline."
+        <div className="stack">
+          <BacktestTabs />
+          {!definitions || !rows || !draft ? (
+            strategies.error || markets.error ? (
+              <FailurePanel failure={(strategies.error ?? markets.error)!} />
+            ) : (
+              <Skeleton lines={5} />
+            )
+          ) : (
+            <form
+              className="stack"
+              noValidate
+              onSubmit={(event) => {
+                event.preventDefault()
+                void start()
+              }}
+            >
+              <StrategyForm
+                definitions={definitions}
+                markets={rows}
+                config={draft}
+                onChange={setDraft}
+                errors={touched ? errors : {}}
               />
-            ) : null}
-            {engineVersion && botVersion && engineVersion !== botVersion ? (
-              <Callout label="Versions" tone="warn">
-                <p>
-                  This app backtests with engine {engineVersion}; the bot trades with {botVersion}. Results may differ from what the bot would trade until both are the same
-                  version.
-                </p>
-              </Callout>
-            ) : null}
-            <div className="btn-row">
-              <Button type="submit" busy={phase != null} icon="backtest">
-                Run the backtest
-              </Button>
-              {phase ? (
-                <Button variant="ghost" onClick={() => stop.current?.abort()}>
-                  Cancel
-                </Button>
+              <div className="form-grid">
+                <Field
+                  id={ids.balance}
+                  label={conditions.budgeted ? 'Budget' : 'Starting balance'}
+                  error={touched ? errors.balance : undefined}
+                  hint={`Simulated; in ${conditions.currency || (quoteOf(marketSymbol) ?? 'the symbol’s quote currency')}.`}
+                >
+                  <input
+                    id={ids.balance}
+                    className="mono"
+                    type="number"
+                    min="1"
+                    step="any"
+                    inputMode="decimal"
+                    value={balance}
+                    onChange={(event) => setBalance(event.target.value)}
+                    aria-describedby={describedBy(ids.balance, 'hint', touched ? errors.balance : null)}
+                  />
+                </Field>
+                <Field id={ids.from} label="From (UTC, optional)" hint="The first stored candle when empty.">
+                  <input
+                    id={ids.from}
+                    type="date"
+                    value={from}
+                    onChange={(event) => setFrom(event.target.value)}
+                    aria-describedby={describedBy(ids.from, 'hint')}
+                  />
+                </Field>
+                <Field
+                  id={ids.to}
+                  label="To (UTC, optional)"
+                  error={touched ? errors.to : undefined}
+                  hint="The newest candle when empty."
+                >
+                  <input
+                    id={ids.to}
+                    type="date"
+                    value={to}
+                    onChange={(event) => setTo(event.target.value)}
+                    aria-describedby={describedBy(ids.to, 'hint', touched ? errors.to : null)}
+                  />
+                </Field>
+              </div>
+              <ConditionsFields
+                form={conditions}
+                onChange={setConditions}
+                errors={touched ? costErrors : {}}
+                symbol={marketSymbol}
+                route={routeShown}
+              />
+              <Segmented
+                name="monte-carlo"
+                legend="Monte Carlo"
+                value={scenarios}
+                onChange={setScenarios}
+                options={SCENARIOS.map((value) => ({
+                  value,
+                  label: value === '0' ? 'Off' : `${fmtCount(Number(value))} scenarios`,
+                }))}
+                hint="How many alternative price histories of the same dates to backtest the strategy on, each made up at random. 200 take seconds on a computer, longer on a phone."
+              />
+              {scenarios !== '0' ? (
+                <Segmented
+                  name="price-paths"
+                  legend="Alternative histories by"
+                  value={method}
+                  onChange={setMethod}
+                  options={METHODS}
+                  hint="The bootstrap glues real candle moves in random blocks, so real tails and calm or wild spells stay. Brownian motion is a calm random walk with the real drift and volatility: a baseline."
+                />
               ) : null}
-            </div>
-            {phase ? (
-              <p className="hint" role="status">
-                {phaseWords(phase)}
-              </p>
-            ) : null}
-            {failure ? <FailurePanel failure={failure} /> : null}
-            {problem ? (
-              <Callout label="Not backtested" tone="error">
-                <p>{problem}</p>
-              </Callout>
-            ) : null}
-          </form>
-        )}
+              {engineVersion && botVersion && engineVersion !== botVersion ? (
+                <Callout label="Versions" tone="warn">
+                  <p>
+                    This app backtests with engine {engineVersion}; the bot trades with {botVersion}. Results may differ
+                    from what the bot would trade until both are the same version.
+                  </p>
+                </Callout>
+              ) : null}
+              <div className="btn-row">
+                <Button type="submit" busy={phase != null} icon="backtest">
+                  Run the backtest
+                </Button>
+                {phase ? (
+                  <Button variant="ghost" onClick={() => stop.current?.abort()}>
+                    Cancel
+                  </Button>
+                ) : null}
+              </div>
+              {phase ? (
+                <p className="hint" role="status">
+                  {phaseWords(phase)}
+                </p>
+              ) : null}
+              {failure ? <FailurePanel failure={failure} /> : null}
+              {problem ? (
+                <Callout label="Not backtested" tone="error">
+                  <p>{problem}</p>
+                </Callout>
+              ) : null}
+            </form>
+          )}
+        </div>
       </Section>
       {current ? (
         <Section label="Report">
@@ -412,7 +476,10 @@ export default function Backtest() {
                     label={`Equity marked at each day’s close from ${fmtMoney(device?.result.initialBalance)} to ${fmtMoney(device?.result.finalEquity)}, and the balance after each closed trade, ending at ${fmtMoney(device?.result.finalBalance)}`}
                     height={300}
                   />
-                  <p className="hint">Solid: the equity at each day’s close, open positions valued there. Dashed: the balance after each closed trade.</p>
+                  <p className="hint">
+                    Solid: the equity at each day’s close, open positions valued there. Dashed: the balance after each
+                    closed trade.
+                  </p>
                 </>
               ) : curve?.length ? (
                 <Chart
@@ -422,7 +489,9 @@ export default function Backtest() {
                 />
               ) : (
                 <p className="p">
-                  {device ? 'No trade closed, so the balance never changed.' : 'This run was saved before backtests ran on this device: run it again to see its balance after every trade.'}
+                  {device
+                    ? 'No trade closed, so the balance never changed.'
+                    : 'This run was saved before backtests ran on this device: run it again to see its balance after every trade.'}
                 </p>
               )}
             </div>
@@ -430,7 +499,9 @@ export default function Backtest() {
               <h3 className="h3">Trade returns</h3>
               {device?.result.tradeReturns.length ? (
                 <>
-                  <p className="hint">How far the price moved in each position’s favour, whatever the position’s size.</p>
+                  <p className="hint">
+                    How far the price moved in each position’s favour, whatever the position’s size.
+                  </p>
                   <TradeReturnsChart
                     returns={device.result.tradeReturns}
                     averageWin={device.result.kelly.wins ? device.result.kelly.averageWin : null}
@@ -446,8 +517,9 @@ export default function Backtest() {
               {device?.result.marketBeta && device.result.dayDots?.length ? (
                 <>
                   <p className="hint">
-                    Each dot is a day: the market’s move across, the strategy’s up, its open positions valued at the day’s close. The slope of the line is beta, how much of the
-                    market’s move the strategy carried. Where it crosses the middle line is alpha, what it made on a day the market stood still.
+                    Each dot is a day: the market’s move across, the strategy’s up, its open positions valued at the
+                    day’s close. The slope of the line is beta, how much of the market’s move the strategy carried.
+                    Where it crosses the middle line is alpha, what it made on a day the market stood still.
                   </p>
                   <MarketBetaChart dots={device.result.dayDots} beta={device.result.marketBeta} />
                 </>
@@ -464,14 +536,20 @@ export default function Backtest() {
             {device?.result.underwater?.length ? (
               <div className="stack-sm">
                 <h3 className="h3">Under water</h3>
-                <p className="hint">How far below its highest point the equity stood at each day’s close, open losses included. The longer and deeper the dips, the harder the strategy is to hold.</p>
+                <p className="hint">
+                  How far below its highest point the equity stood at each day’s close, open losses included. The longer
+                  and deeper the dips, the harder the strategy is to hold.
+                </p>
                 <UnderwaterChart days={device.result.underwater} />
               </div>
             ) : null}
             {device?.result.analysis?.checks.rolling.length ? (
               <div className="stack-sm">
                 <h3 className="h3">Beta and Sharpe over time</h3>
-                <p className="hint">Each point measures the 90 days up to it. Lines that wander say one beta, or one Sharpe ratio, does not describe the whole period.</p>
+                <p className="hint">
+                  Each point measures the 90 days up to it. Lines that wander say one beta, or one Sharpe ratio, does
+                  not describe the whole period.
+                </p>
                 <RollingCharts points={device.result.analysis.checks.rolling} market={device.result.market.symbol} />
               </div>
             ) : null}
@@ -487,7 +565,10 @@ export default function Backtest() {
                   : 'Positions still open at the end are not in the balance.'}{' '}
                 The bot trades with the same decision code, so a backtest and the live strategy cannot drift apart.
               </p>
-              <p>A strategy that is long in rises and short in falls shows a V of dots, a beta near 0 and a large alpha: that is timing the market, which one straight line cannot tell apart.</p>
+              <p>
+                A strategy that is long in rises and short in falls shows a V of dots, a beta near 0 and a large alpha:
+                that is timing the market, which one straight line cannot tell apart.
+              </p>
             </Callout>
           </div>
         </Section>
@@ -501,8 +582,10 @@ export default function Backtest() {
             <MonteCarloSection mc={device.monteCarlo} />
           ) : (
             <p className="p">
-              This run was saved with the Monte Carlo used before, which resampled its trades: {fmtPercent(device.result.monteCarlo!.endedAboveStartPercent, 1)} of{' '}
-              {fmtCount(device.result.monteCarlo!.paths)} paths ended above the start. Run it again to backtest it on alternative price histories.
+              This run was saved with the Monte Carlo used before, which resampled its trades:{' '}
+              {fmtPercent(device.result.monteCarlo!.endedAboveStartPercent, 1)} of{' '}
+              {fmtCount(device.result.monteCarlo!.paths)} paths ended above the start. Run it again to backtest it on
+              alternative price histories.
             </p>
           )}
         </Section>
@@ -522,13 +605,15 @@ export default function Backtest() {
             </button>
           ) : null}
         </div>
-        {published ? (
-          <Callout label="Published">
-            {published}
-          </Callout>
-        ) : null}
+        {published ? <Callout label="Published">{published}</Callout> : null}
         {publishing ? (
-          <PublishCard key={publishing.id} run={publishing} definitions={definitions} onClose={() => setPublishing(null)} onDone={setPublished} />
+          <PublishCard
+            key={publishing.id}
+            run={publishing}
+            definitions={definitions}
+            onClose={() => setPublishing(null)}
+            onDone={setPublished}
+          />
         ) : null}
         {saved.length ? (
           <div className="stack">
@@ -544,7 +629,9 @@ export default function Backtest() {
                   card: 'sub',
                   align: 'right',
                   render: (run) => {
-                    const [profit, percent] = isDeviceRun(run) ? [run.result.profitLoss, run.result.returnPercent] : [run.report.profitLoss, run.report.returnPercent]
+                    const [profit, percent] = isDeviceRun(run)
+                      ? [run.result.profitLoss, run.result.returnPercent]
+                      : [run.report.profitLoss, run.report.returnPercent]
                     return <span className={tone(profit) ?? undefined}>{fmtSignedPercent(percent)}</span>
                   },
                 },
@@ -552,10 +639,24 @@ export default function Backtest() {
                   key: 'setup',
                   header: 'Setup',
                   wrap: true,
-                  render: (run) => (isDeviceRun(run) ? run.result.setup : `${run.report.parameters ?? ''}${run.report.rules.length ? `, rules: ${run.report.rules.join('; ')}` : ''}`),
+                  render: (run) =>
+                    isDeviceRun(run)
+                      ? run.result.setup
+                      : `${run.report.parameters ?? ''}${run.report.rules.length ? `, rules: ${run.report.rules.join('; ')}` : ''}`,
                 },
-                { key: 'trades', header: 'Trades', align: 'right', render: (run) => fmtCount(isDeviceRun(run) ? run.result.closedTrades : run.report.trades) },
-                { key: 'dd', header: 'Max drawdown', align: 'right', render: (run) => fmtPercent(isDeviceRun(run) ? run.result.maxDrawdownPercent : run.report.maxDrawdownPercent) },
+                {
+                  key: 'trades',
+                  header: 'Trades',
+                  align: 'right',
+                  render: (run) => fmtCount(isDeviceRun(run) ? run.result.closedTrades : run.report.trades),
+                },
+                {
+                  key: 'dd',
+                  header: 'Max drawdown',
+                  align: 'right',
+                  render: (run) =>
+                    fmtPercent(isDeviceRun(run) ? run.result.maxDrawdownPercent : run.report.maxDrawdownPercent),
+                },
                 {
                   key: 'mc',
                   header: 'Ended above start',
@@ -581,7 +682,11 @@ export default function Backtest() {
                       const known = definitions?.find((d) => d.name === used.strategy)
                       const restored = (isDeviceRun(run) && run.conditions) || NO_CONDITIONS
                       // Its costs become the market's, so choosing the market (which reads them back) keeps them.
-                      void (connection ? db.set(costsKey(connection.id, run.input.symbol), costsPart(restored)) : Promise.resolve()).then(() => {
+                      void (
+                        connection
+                          ? db.set(costsKey(connection.id, run.input.symbol), costsPart(restored))
+                          : Promise.resolve()
+                      ).then(() => {
                         setDraft(known ? applySetup(used, used, known).config : used)
                         setConditions(restored)
                         setTouched(true)
@@ -612,7 +717,11 @@ export default function Backtest() {
                     <input
                       type="checkbox"
                       checked={compare.includes(run.id)}
-                      onChange={(event) => setCompare((list) => (event.target.checked ? [...list, run.id].slice(-4) : list.filter((id) => id !== run.id)))}
+                      onChange={(event) =>
+                        setCompare((list) =>
+                          event.target.checked ? [...list, run.id].slice(-4) : list.filter((id) => id !== run.id),
+                        )
+                      }
                     />
                     Compare
                   </label>
@@ -627,7 +736,11 @@ export default function Backtest() {
                 rowKey={(row) => row[0]}
                 columns={[
                   { key: 'what', header: '', render: (row) => <strong className="label">{row[0]}</strong> },
-                  ...compared.map((run, index) => ({ key: run.id, header: `Run ${index + 1}`, render: (row: CompareRow) => row[1](run) })),
+                  ...compared.map((run, index) => ({
+                    key: run.id,
+                    header: `Run ${index + 1}`,
+                    render: (row: CompareRow) => row[1](run),
+                  })),
                 ]}
               />
             ) : compare.length === 1 ? (
@@ -651,41 +764,96 @@ type CompareRow = [string, (run: SavedRun) => string]
 const COMPARED_ROWS: CompareRow[] = [
   ['Market', marketOf],
   ['Setup', (run) => (isDeviceRun(run) ? run.result.setup : (run.report.parameters ?? ''))],
-  ['Period', (run) => (isDeviceRun(run) ? `${fmtTime(Date.parse(run.result.start))} → ${fmtTime(Date.parse(run.result.end))}` : `${fmtTime(run.report.start)} → ${fmtTime(run.report.end)}`)],
+  [
+    'Period',
+    (run) =>
+      isDeviceRun(run)
+        ? `${fmtTime(Date.parse(run.result.start))} → ${fmtTime(Date.parse(run.result.end))}`
+        : `${fmtTime(run.report.start)} → ${fmtTime(run.report.end)}`,
+  ],
   [
     'Profit / loss',
-    (run) => (isDeviceRun(run) ? `${fmtSignedMoney(run.result.profitLoss)} ${fmtSignedPercent(run.result.returnPercent)}` : `${fmtSignedMoney(run.report.profitLoss)} ${fmtSignedPercent(run.report.returnPercent)}`),
+    (run) =>
+      isDeviceRun(run)
+        ? `${fmtSignedMoney(run.result.profitLoss)} ${fmtSignedPercent(run.result.returnPercent)}`
+        : `${fmtSignedMoney(run.report.profitLoss)} ${fmtSignedPercent(run.report.returnPercent)}`,
   ],
-  ['Sharpe a year', (run) => (isDeviceRun(run) && run.result.analysis?.returns ? `${run.result.analysis.returns.sharpe.toFixed(2)} (${fmtPercent(run.result.analysis.returns.psr * 100, 0)} likely above 0)` : '–')],
+  [
+    'Sharpe a year',
+    (run) =>
+      isDeviceRun(run) && run.result.analysis?.returns
+        ? `${run.result.analysis.returns.sharpe.toFixed(2)} (${fmtPercent(run.result.analysis.returns.psr * 100, 0)} likely above 0)`
+        : '–',
+  ],
   [
     'Beta',
     (run) => {
       const beta = isDeviceRun(run) ? run.result.marketBeta : null
-      return beta ? `${beta.beta.toFixed(2)}${beta.betaLow == null || beta.betaHigh == null ? '' : ` [${beta.betaLow.toFixed(2)}, ${beta.betaHigh.toFixed(2)}]`}` : '–'
+      return beta
+        ? `${beta.beta.toFixed(2)}${beta.betaLow == null || beta.betaHigh == null ? '' : ` [${beta.betaLow.toFixed(2)}, ${beta.betaHigh.toFixed(2)}]`}`
+        : '–'
     },
   ],
   [
     'Alpha a year',
     (run) => {
       const beta = isDeviceRun(run) ? run.result.marketBeta : null
-      return beta ? `${fmtSignedPercent(beta.annualAlpha * 100)}${beta.alphaT == null ? '' : ` (t ${beta.alphaT.toFixed(2)})`}` : '–'
+      return beta
+        ? `${fmtSignedPercent(beta.annualAlpha * 100)}${beta.alphaT == null ? '' : ` (t ${beta.alphaT.toFixed(2)})`}`
+        : '–'
     },
   ],
-  ['Drawdown, marked', (run) => (isDeviceRun(run) && run.result.analysis ? fmtPercent(run.result.analysis.drawdowns.maxDrawdownPercent) : '–')],
-  ['Final equity', (run) => (isDeviceRun(run) && run.result.finalEquity != null ? fmtMoney(run.result.finalEquity, run.result.analysis?.currency ?? '') : '–')],
-  ['Conditions', (run) => (isDeviceRun(run) && run.result.analysis?.conditions ? run.result.analysis.conditions : 'none')],
-  ['Costs paid', (run) => (isDeviceRun(run) && run.result.analysis?.costs ? fmtMoney(run.result.analysis.costs.paid, run.result.analysis.currency ?? '') : '–')],
-  ['Trades', (run) => (isDeviceRun(run) ? `${run.result.closedTrades} (${fmtPercent(run.result.winRate, 1)} won)` : `${run.report.trades} (${fmtPercent(run.report.winRate, 1)} won)`)],
+  [
+    'Drawdown, marked',
+    (run) =>
+      isDeviceRun(run) && run.result.analysis ? fmtPercent(run.result.analysis.drawdowns.maxDrawdownPercent) : '–',
+  ],
+  [
+    'Final equity',
+    (run) =>
+      isDeviceRun(run) && run.result.finalEquity != null
+        ? fmtMoney(run.result.finalEquity, run.result.analysis?.currency ?? '')
+        : '–',
+  ],
+  [
+    'Conditions',
+    (run) => (isDeviceRun(run) && run.result.analysis?.conditions ? run.result.analysis.conditions : 'none'),
+  ],
+  [
+    'Costs paid',
+    (run) =>
+      isDeviceRun(run) && run.result.analysis?.costs
+        ? fmtMoney(run.result.analysis.costs.paid, run.result.analysis.currency ?? '')
+        : '–',
+  ],
+  [
+    'Trades',
+    (run) =>
+      isDeviceRun(run)
+        ? `${run.result.closedTrades} (${fmtPercent(run.result.winRate, 1)} won)`
+        : `${run.report.trades} (${fmtPercent(run.report.winRate, 1)} won)`,
+  ],
   [
     'Drawdown, closed',
-    (run) => (isDeviceRun(run) ? `${fmtSignedMoney(run.result.maxDrawdown)} (${fmtPercent(run.result.maxDrawdownPercent)})` : `${fmtSignedMoney(run.report.maxDrawdown)} (${fmtPercent(run.report.maxDrawdownPercent)})`),
+    (run) =>
+      isDeviceRun(run)
+        ? `${fmtSignedMoney(run.result.maxDrawdown)} (${fmtPercent(run.result.maxDrawdownPercent)})`
+        : `${fmtSignedMoney(run.report.maxDrawdown)} (${fmtPercent(run.report.maxDrawdownPercent)})`,
   ],
   [
     'Monte Carlo',
     (run) => {
       const above = endedAbove(run)
-      return above ? `${fmtPercent(above.percent, 1)} of ${fmtCount(above.of)} ended above the start (${above.method})` : '–'
+      return above
+        ? `${fmtPercent(above.percent, 1)} of ${fmtCount(above.of)} ended above the start (${above.method})`
+        : '–'
     },
   ],
-  ['Real history beat', (run) => (isDeviceRun(run) && run.monteCarlo ? `${fmtPercent(run.monteCarlo.summary.realBeatPercent, 0)} of the alternative pasts` : '–')],
+  [
+    'Real history beat',
+    (run) =>
+      isDeviceRun(run) && run.monteCarlo
+        ? `${fmtPercent(run.monteCarlo.summary.realBeatPercent, 0)} of the alternative pasts`
+        : '–',
+  ],
 ]

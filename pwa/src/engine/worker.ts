@@ -13,6 +13,7 @@ export type WorkerCall =
   | { id: number; base: string; kind: 'backtest'; request: string; candles: CandleColumns; conversion: ConversionColumns }
   | { id: number; base: string; kind: 'simulate'; request: string; candles: CandleColumns; first: number; count: number; conversion: ConversionColumns }
   | { id: number; base: string; kind: 'planConversion'; request: string }
+  | { id: number; base: string; kind: 'combine'; request: string }
   | { id: number; base: string; kind: 'summarize'; request: string }
   | { id: number; base: string; kind: 'levels'; request: string; candles: CandleColumns; count: number }
 
@@ -27,6 +28,8 @@ type EngineExports = {
   Backtest: (request: string, ...columnsThenConversion: [...Columns, conversionTimes: number[], conversionCloses: number[]]) => string
   Simulate: (request: string, ...columnsRangeConversion: [...Columns, first: number, count: number, conversionTimes: number[], conversionCloses: number[]]) => string
   PlanConversion: (request: string) => string
+  /** Engine 2.9.0 on. */
+  Combine: (request: string) => string
   Summarize: (request: string) => string
   Levels: (request: string, ...columnsThenCount: [...Columns, count: number]) => string
 }
@@ -73,6 +76,8 @@ function answer(exports: EngineExports, call: WorkerCall): string {
       return exports.Simulate(call.request, ...columns(call.candles), call.first, call.count, call.conversion.time, call.conversion.close)
     case 'planConversion':
       return exports.PlanConversion(call.request)
+    case 'combine':
+      return exports.Combine(call.request)
     case 'summarize':
       return exports.Summarize(call.request)
     case 'levels':

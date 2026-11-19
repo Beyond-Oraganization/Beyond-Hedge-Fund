@@ -237,3 +237,17 @@ details.more-box>summary{cursor:pointer;padding:10px 0;font:700 13px/1.4 var(--f
 .rule-tools .icon-btn{min-width:44px;height:44px;padding:0 8px}
 @container (max-width:560px){.rule{grid-template-columns:auto minmax(0,1fr)}.rule-tools{grid-column:2}}
 .rule-list{display:grid;gap:6px;margin:0;padding-left:1.6em;font-size:15px;line-height:1.45}
+/* Backtest tabs: links that look like segmented choices, the current one filled. */
+.backtest-tabs a{display:flex;color:inherit;text-decoration:none}
+.backtest-tabs a:hover span{background:color-mix(in srgb,var(--fg) 12%,var(--bg))}
+.backtest-tabs a[aria-current="page"] span{background:var(--fg);color:var(--bg)}
+.main .backtest-tabs a[aria-current="page"] span{background:var(--c-fg);color:var(--paper)}
+.backtest-tabs a:focus-visible{outline:none}
+.backtest-tabs a:focus-visible span{outline:4px solid var(--fg);outline-offset:3px}
+/* Combined backtests: the correlation matrix's values, the share bars' legend, and each leg's small chart. */
+.chart-box.scroll-x{overflow-x:auto}
+.chart-box .cell-value{font:600 13px/1 var(--f-t);font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:8px 20px;font:500 13px/1.3 var(--f-r)}
+.legend .key{display:inline-flex;align-items:center;gap:8px}
+.small-multiples{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:20px}
+.small-multiples figure{margin:0}

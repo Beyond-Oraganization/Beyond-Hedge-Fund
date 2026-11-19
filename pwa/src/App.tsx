@@ -12,6 +12,7 @@ const Trading = lazy(() => import('./screens/Trading.tsx'))
 const Markets = lazy(() => import('./screens/Markets.tsx'))
 const MarketDetail = lazy(() => import('./screens/MarketDetail.tsx'))
 const Backtest = lazy(() => import('./screens/Backtest.tsx'))
+const CombinedBacktest = lazy(() => import('./screens/CombinedBacktest.tsx'))
 const Orders = lazy(() => import('./screens/Orders.tsx'))
 const Strategies = lazy(() => import('./screens/Strategies.tsx'))
 const Console = lazy(() => import('./screens/Console.tsx'))
@@ -67,6 +68,7 @@ const router = createHashRouter([
       { path: 'markets', element: page(<Markets />) },
       { path: 'markets/:symbol/:interval', element: page(<MarketDetail />) },
       { path: 'backtest', element: page(<Backtest />) },
+      { path: 'backtest/combined', element: page(<CombinedBacktest />) },
       { path: 'orders', element: page(<Orders />) },
       { path: 'strategies', element: page(<Strategies />) },
       { path: 'console', element: page(<Console />) },

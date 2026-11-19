@@ -305,7 +305,7 @@ export type CostSensitivity = {
 export type KellyFigures = { gross: KellyEstimate; net: KellyEstimate; openTogether: number; concurrencyAdjustedPercent: number | null }
 
 /** The equity at a day's end, its open positions valued at the day's last close. */
-export type DailyEquityPoint = { day: string; equity: number; close: number; inMarket: boolean; costsToDate?: number; exposure?: number }
+export type DailyEquityPoint = { day: string; equity: number; close: number; inMarket: boolean; costsToDate?: number; exposure?: number; rate?: number }
 
 export type DeviceBacktest = {
   ok: true
@@ -372,3 +372,99 @@ export type SimulateAnswer = DeviceScenarios | EngineFailure
 export type SummaryAnswer = DeviceSummary | EngineFailure
 
 export type ConversionPlanAnswer = DeviceConversionPlan | EngineFailure
+
+/** How each sizing method sizes: a percent or Kelly scales with a leg's money, a fixed amount does not. */
+export type SizingMethodName = 'Percent' | 'Fixed' | 'Kelly'
+
+/** One leg of a combined backtest, as `Combine` takes it: its own device backtest's daily equity, in the combined currency. */
+export type CombineLegRequest = { label: string; symbol: string; currency: string; budget: number; sizing: SizingMethodName; dailyEquity: DailyEquityPoint[] }
+
+/** What `Combine` adds up (engine 2.9.0 on): 2 to 8 legs in one currency; `riskFree` in percent a year. */
+export type CombineRequest = { currency: string; riskFree: number; legs: CombineLegRequest[] }
+
+/** One market's beta in a fit on several at once, with its 95 % interval and t (Core/Portfolio/FactorFit.cs). */
+export type FactorLoading = { name: string; beta: number; error: number; t: number | null; low: number; high: number }
+
+/** The combined daily return fitted on every traded market at once: one beta each, and the combined alpha. */
+export type FactorFit = {
+  days: number
+  alpha: number
+  annualAlpha: number
+  alphaError: number
+  alphaT: number | null
+  rSquared: number
+  loadings: FactorLoading[]
+  daysPerYear: number
+  riskFree: number
+  /** The markets left out because they moved with one kept, in words. */
+  merged: string[]
+  annualAlphaLow: number
+  annualAlphaHigh: number
+  alphaEvidence: AlphaEvidence | null
+}
+
+/** A leg in the combined backtest: its money and result, its shares, and its beta to its currency's rate. */
+export type CombinedLeg = {
+  label: string
+  symbol: string
+  budget: number
+  finalEquity: number
+  profitLoss: number
+  returnPercent: number
+  /** Its budget's share of all the budgets. */
+  weight: number
+  /** A year, on the combined days. */
+  volatility: number
+  profitShare: number | null
+  riskShare: number | null
+  inMarketPercent: number
+  /** e.g. "USD in EUR"; null without a conversion. */
+  currencyBeta: FactorLoading | null
+}
+
+export type SplitRule = 'AsSet' | 'EqualMoney' | 'InverseVolatility' | 'Hrp'
+
+/** The same total money split by a rule, each leg's result scaled to its share: exact when every leg sizes by a percent or Kelly. */
+export type BudgetSplit = {
+  rule: SplitRule
+  weights: number[]
+  exact: boolean
+  returnPercent: number
+  sharpe: number | null
+  volatility: number | null
+  /** Zero or negative, at each day's end. */
+  maxDrawdownPercent: number
+  diversificationRatio: number | null
+  riskShares: number[] | null
+}
+
+/** A combined backtest (Core/Backtesting/Combined/CombinedBacktest.cs, engine 2.9.0 on). */
+export type CombinedResult = {
+  currency: string
+  riskFree: number
+  daysPerYear: number
+  initialBalance: number
+  finalEquity: number
+  profitLoss: number
+  returnPercent: number
+  days: { day: string; equity: number; exposure: number }[]
+  returns: ReturnStats | null
+  returnsMissing: string | null
+  cagr: number | null
+  calmar: number | null
+  drawdowns: DrawdownSummary
+  legs: CombinedLeg[]
+  markets: FactorFit | null
+  marketsMissing: string | null
+  /** In the legs' order; the stress values are of the worst 10 % combined days. */
+  correlation: { labels: string[]; values: number[][]; stressValues: number[][] | null; stressDays: number } | null
+  diversificationRatio: number | null
+  splits: BudgetSplit[]
+  overlaps: { first: string; second: string; bothInMarketPercent: number }[]
+  exposure: { averageLeverage: number; maxLeverage: number; maxGross: number }
+  notes: string[]
+}
+
+export type DeviceCombined = { ok: true; engine: string; combined: CombinedResult }
+
+export type CombineAnswer = DeviceCombined | EngineFailure

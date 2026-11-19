@@ -215,3 +215,28 @@ describe('a backtest in another currency (engine 2.8.0)', () => {
     expect(started[0]!.kinds).toEqual(['planConversion'])
   })
 })
+
+describe('several backtests at once (engine 2.9.0)', () => {
+  it('spreads the legs over the workers and answers them in the legs’ order', async () => {
+    const started: RecordingWorker[] = []
+    const engine = createEngine({ base: 'https://app.test/engine/', workers: 2, spawn: () => started[started.push(new RecordingWorker({ ok: true })) - 1]! })
+    const done: number[] = []
+
+    const answers = await engine.backtestAll([{ request, candles }, { request: { ...request, symbol: 'EURUSD' }, candles }, { request, candles }], { onProgress: (count) => done.push(count) })
+
+    expect(answers).toHaveLength(3)
+    expect(started).toHaveLength(2)
+    expect(started.flatMap((worker) => worker.kinds)).toEqual(['backtest', 'backtest', 'backtest'])
+    expect(done).toEqual([1, 2, 3])
+  })
+
+  it('adds the legs up without waiting for the strategy pack', async () => {
+    const started: RecordingWorker[] = []
+    const engine = createEngine({ base: 'https://app.test/engine/', workers: 1, spawn: () => started[started.push(new RecordingWorker({ ok: true })) - 1]! })
+    engine.setStrategies({ sha256: 'c'.repeat(64), bytes: new Uint8Array([1]) })
+
+    await engine.combine({ currency: 'EUR', riskFree: 0, legs: [] })
+
+    expect(started[0]!.kinds).toEqual(['combine'])
+  })
+})
