@@ -11,7 +11,9 @@ import type { CommandResult } from '../api/types.ts'
 import { deviceAnswer, scenariosAnswer, summaryAnswer } from '../backtest/fixtures.ts'
 import { EngineContext } from '../engine/context.ts'
 import type { Engine } from '../engine/engine.ts'
-import type { CandleColumns, EngineAnswer, EngineRequest, SummaryRequest } from '../engine/types.ts'
+import { analysis } from '../backtest/fixtures.ts'
+import { costsKey } from '../backtest/conditions.ts'
+import type { CandleColumns, ConversionColumns, EngineAnswer, EngineRequest, SummaryRequest } from '../engine/types.ts'
 import { db } from '../state/db.ts'
 import { useConnections } from '../state/connections.ts'
 import { useSettings } from '../state/settings.ts'
@@ -29,8 +31,8 @@ const KEY = 'k'.repeat(40)
 
 let bot: MockBot
 let overrides: [prefix: string, respond: () => Response][] = []
-let asked: { request: EngineRequest; candles: CandleColumns }[] = []
-let simulated: { request: EngineRequest; count: number }[] = []
+let asked: { request: EngineRequest; candles: CandleColumns; conversion?: ConversionColumns }[] = []
+let simulated: { request: EngineRequest; count: number; conversion?: ConversionColumns }[] = []
 let summed: SummaryRequest[] = []
 let engineAnswer: EngineAnswer = deviceAnswer()
 
@@ -54,12 +56,12 @@ const engine: Engine = {
   async levels() {
     return { ok: true, engine: '2.5.0', strategy: 'sample', lines: [] }
   },
-  async backtest(request, candles) {
-    asked.push({ request, candles })
+  async backtest(request, candles, _signal, conversion) {
+    asked.push({ request, candles, conversion })
     return engineAnswer
   },
-  async simulate(request, _candles, count, { onProgress } = {}) {
-    simulated.push({ request, count })
+  async simulate(request, _candles, count, { onProgress, conversion } = {}) {
+    simulated.push({ request, count, conversion })
     onProgress?.(count, count)
     return scenariosAnswer({ method: request.scenarios!.method, seed: request.scenarios!.seed })
   },
@@ -67,11 +69,16 @@ const engine: Engine = {
     summed.push(request)
     return summaryAnswer()
   },
+  // As the engine plans it: gold's USD into EUR through EURUSD, when this device has it.
+  async planConversion({ symbol, currency, markets }) {
+    if (symbol === 'XAUUSD' && currency === 'EUR' && markets.includes('EURUSD'))
+      return { ok: true, engine: '2.8.0', from: 'USD', to: 'EUR', steps: [{ symbol: 'EURUSD', divide: true, ownMarket: false }] }
+    return { ok: false, engine: '2.8.0', error: { message: `No market on this device turns USD into ${currency}: copy ${currency}USD or USD${currency} candles.` } }
+  },
 }
 
 let n = 0
-function show() {
-  const id = `backtest-${++n}`
+function show(id = `backtest-${++n}`) {
   useConnections.setState({ loaded: true, connections: [{ id, name: 'Test bot', url: BOT_URL, storage: 'session', sealed: null, addedAt: 0 }], activeId: id, keys: { [id]: KEY } })
   return render(
     <QueryClientProvider client={queryClient}>
@@ -119,6 +126,128 @@ describe('Backtest', () => {
     expect(candles.close.length).toBe(candles.time.length)
     expect(simulated[0]).toMatchObject({ count: 200, request: { ...request, scenarios: { method: 'Bootstrap', seed: expect.any(Number) } } })
     expect(summed[0]).toMatchObject({ initialBalance: 1000, real: deviceAnswer().realScenario, results: scenariosAnswer().results })
+  })
+
+  it('asks for no costs, fill, budget or currency when none is set, as before engine 2.8.0', async () => {
+    show()
+    await run()
+
+    await screen.findByRole('heading', { name: 'Monte Carlo' })
+    expect(Object.keys(asked[0]!.request)).not.toEqual(expect.arrayContaining(['costs']))
+    expect(asked[0]!.request).not.toHaveProperty('fill')
+    expect(asked[0]!.request).not.toHaveProperty('budget')
+    expect(asked[0]!.request).not.toHaveProperty('conversion')
+    expect(asked[0]!.conversion).toBeUndefined()
+  })
+
+  it('sends the costs typed, the next-open fill and the balance as a budget', async () => {
+    show()
+    const user = userEvent.setup()
+    await user.click(await screen.findByText('Costs and conditions'))
+    await user.type(screen.getByLabelText('Bid–ask spread'), '0,3')
+    await user.type(screen.getByLabelText('Swap long, % a year'), '−4')
+    await user.click(screen.getByRole('radio', { name: 'The next candle’s open' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Trade like a live budget of the starting balance' }))
+    expect(screen.getByLabelText('Budget')).toHaveValue(1000)
+    await user.click(screen.getByRole('button', { name: 'Run the backtest' }))
+
+    await screen.findByRole('heading', { name: 'Monte Carlo' })
+    expect(asked[0]!.request).toMatchObject({ costs: { spread: 0.3, slippage: 0, commission: 0, swapLong: -4, swapShort: 0 }, fill: 'NextOpen', budget: 1000 })
+    expect(simulated[0]!.request).toMatchObject({ costs: { spread: 0.3 }, fill: 'NextOpen', budget: 1000 })
+  })
+
+  it('refuses a cost no market charges, before running', async () => {
+    show()
+    const user = userEvent.setup()
+    await user.click(await screen.findByText('Costs and conditions'))
+    await user.type(screen.getByLabelText('Commission, % a side'), '12')
+    await user.click(screen.getByRole('button', { name: 'Run the backtest' }))
+
+    expect(await screen.findByText('The commission is a percent of the notional on each side, from 0 to 10.')).toBeInTheDocument()
+    expect(asked).toEqual([])
+  })
+
+  it('remembers a market’s costs on this device, and brings them back for that market', async () => {
+    const id = `backtest-${++n}`
+    await db.set(costsKey(id, 'XAUUSD'), { spread: '0.3', slippage: '', commission: '0.0035', swapLong: '', swapShort: '' })
+    show(id)
+
+    expect(await screen.findByLabelText('Bid–ask spread')).toHaveValue('0.3')
+    const user = userEvent.setup()
+    await user.clear(screen.getByLabelText('Bid–ask spread'))
+    await user.type(screen.getByLabelText('Bid–ask spread'), '0.5')
+    await user.click(screen.getByRole('button', { name: 'Run the backtest' }))
+
+    await screen.findByRole('heading', { name: 'Monte Carlo' })
+    expect(await db.get(costsKey(id, 'XAUUSD'))).toMatchObject({ spread: '0.5', commission: '0.0035' })
+  })
+
+  it('keeps a run’s conditions with it, and “Use” brings them back', async () => {
+    show()
+    const user = userEvent.setup()
+    await user.click(await screen.findByText('Costs and conditions'))
+    await user.type(screen.getByLabelText('Bid–ask spread'), '0.3')
+    await user.click(screen.getByRole('radio', { name: 'The next candle’s open' }))
+    await user.click(screen.getByRole('button', { name: 'Run the backtest' }))
+    await screen.findByRole('heading', { name: 'Monte Carlo' })
+
+    await user.clear(screen.getByLabelText('Bid–ask spread'))
+    await user.click(screen.getByRole('radio', { name: 'The signal’s close' }))
+    await user.click(within(screen.getByRole('table', { name: 'Saved backtests' }) as HTMLElement).getByRole('button', { name: 'Use' }))
+
+    expect(await screen.findByDisplayValue('0.3')).toHaveAccessibleName('Bid–ask spread')
+    expect(screen.getByRole('radio', { name: 'The next candle’s open' })).toBeChecked()
+  })
+
+  it('converts into EUR through EURUSD: says how, copies EURUSD to this device and sends its candles', async () => {
+    show()
+    const user = userEvent.setup()
+    await user.click(await screen.findByText('Costs and conditions'))
+    await user.selectOptions(screen.getByLabelText('Measured in'), 'EUR')
+
+    expect(await screen.findByText('Converted at each moment: ÷ EURUSD 4h.')).toBeInTheDocument()
+    expect(screen.getByText('Simulated; in EUR.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Run the backtest' }))
+
+    await screen.findByRole('heading', { name: 'Monte Carlo' })
+    const { request, conversion } = asked[0]!
+    const count = request.conversion?.hops[0]?.count ?? 0
+    expect(request.conversion).toEqual({ currency: 'EUR', hops: [{ symbol: 'EURUSD', interval: '4h', count }] })
+    expect(count).toBeGreaterThan(100)
+    expect(conversion?.time).toHaveLength(count)
+    expect(conversion?.close).toHaveLength(count)
+    expect(simulated[0]!.conversion).toBe(conversion)
+  })
+
+  it('says which market to copy when no stored market leads to the currency, and does not run', async () => {
+    show()
+    const user = userEvent.setup()
+    await user.click(await screen.findByText('Costs and conditions'))
+    await user.selectOptions(screen.getByLabelText('Measured in'), 'PLN')
+
+    expect(await screen.findByText('No market on this device turns USD into PLN: copy PLNUSD or USDPLN candles.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Run the backtest' }))
+    expect(asked).toEqual([])
+  })
+
+  it('shows what the costs took: gross next to net, the Sharpe ratio at none, these and twice the costs, and Kelly before them', async () => {
+    const costs = { paid: 21.23, grossProfitLoss: 19.22, netProfitLoss: -2.01, sharpeWithout: 0.71, sharpe: -0.15, sharpeAtTwice: -0.97, breakEvenMultiple: 0.83, breakEvenMissing: null }
+    const gross = { ...deviceAnswer().kelly, percent: 4.16, whyUnusable: null }
+    engineAnswer = deviceAnswer({
+      analysis: analysis({ costs, kelly: { gross, net: deviceAnswer().kelly, openTogether: 1, concurrencyAdjustedPercent: null }, skippedOpens: 3, currency: 'EUR', conditions: 'spread 0.5, budget 1,000, in EUR (÷ EURUSD)' }),
+    })
+    show()
+    await run()
+
+    expect(await screen.findByText('21.23 EUR by the closed trades')).toBeInTheDocument()
+    expect(screen.getByText('+19.22 EUR before, -2.01 EUR after')).toBeInTheDocument()
+    expect(screen.getByText('0.71 without costs, -0.15 with these, -0.97 with twice')).toBeInTheDocument()
+    expect(screen.getByText(/stays above 0 up to about 0\.8× these costs/)).toBeInTheDocument()
+    expect(screen.getByText(/^4\.16% of the balance/)).toBeInTheDocument()
+    expect(screen.getByText('3 open signals found no room in the budget')).toBeInTheDocument()
+    expect(screen.getByText('spread 0.5, budget 1,000, in EUR (÷ EURUSD)')).toBeInTheDocument()
+    expect(screen.getByText(/after 21\.23 EUR of costs/)).toBeInTheDocument()
+    expect(screen.getByText(/^The costs entered, and no margin or stop-outs\./)).toBeInTheDocument()
   })
 
   it('makes the alternative histories by Brownian motion when chosen', async () => {

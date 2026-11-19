@@ -79,7 +79,18 @@ export default function PublishedPage() {
   }
 
   const columns: Column<PublishedBacktest>[] = [
-    { key: 'title', header: 'Published', card: 'title', wrap: true, render: (p) => <span><strong>{p.title}</strong> <span className="k-feed-account">#{p.id}</span></span> },
+    {
+      key: 'title',
+      header: 'Published',
+      card: 'title',
+      wrap: true,
+      render: (p) => (
+        <span>
+          <strong>{p.title}</strong> <span className="k-feed-account">#{p.id}</span>
+          {p.conditions ? <span className="hint"> · with {p.conditions}</span> : null}
+        </span>
+      ),
+    },
     { key: 'setup', header: 'Setup', wrap: true, render: (p) => p.setupName ?? '–' },
     { key: 'period', header: 'Period', render: (p) => `${p.from.slice(0, 10)} → ${p.to.slice(0, 10)}` },
     { key: 'return', header: 'Return', align: 'right', render: (p) => fmtSignedPercent(p.returnPercent) },

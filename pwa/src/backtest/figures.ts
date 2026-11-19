@@ -14,23 +14,71 @@ export type FigureGroup = { title: string; rows: [label: string, value: string][
 export function figuresOf(run: SavedRun): { headline: Headline[]; groups: FigureGroup[] } {
   if (!isDeviceRun(run)) return legacyFigures(run)
   const r = run.result
-  const before = deviceFigures(r)
+  // Engine 2.8.0 on: every amount is in the currency the run was measured in, when it converted.
+  const cur = r.analysis?.currency ?? ''
+  const before = deviceFigures(r, cur)
   if (!r.analysis) return before
   const [result, trades, , market, sizing, about] = before.groups
+  const costs = costRows(r, cur)
   return {
-    headline: measuredHeadline(r),
-    groups: [result!, { title: 'Risk-adjusted', rows: riskAdjustedRows(r) }, market!, { title: 'Risk', rows: riskRows(r) }, { ...trades!, rows: [...trades!.rows, ...tradeRows(r)] }, sizing!, about!],
+    headline: measuredHeadline(r, cur),
+    groups: [
+      result!,
+      ...(costs.length ? [{ title: 'Costs', rows: costs }] : []),
+      { title: 'Risk-adjusted', rows: riskAdjustedRows(r) },
+      market!,
+      { title: 'Risk', rows: riskRows(r, cur) },
+      { ...trades!, rows: [...trades!.rows, ...tradeRows(r, cur)] },
+      { ...sizing!, rows: [...sizing!.rows, ...kellyRows(r)] },
+      { ...about!, rows: r.analysis.conditions ? [...about!.rows, ['Conditions', r.analysis.conditions]] : about!.rows },
+    ],
   }
 }
 
+/** What the costs took and how much more the run could bear (engine 2.8.0 on); none without costs. */
+function costRows(r: DeviceResult, cur: string): [label: string, value: string][] {
+  const costs = r.analysis?.costs
+  if (!costs) return []
+  const sharpe = (value: number | null) => (value == null ? '–' : value.toFixed(2))
+  return [
+    ['Costs paid', `${fmtMoney(costs.paid, cur)} by the closed trades`],
+    ['Before and after costs', `${fmtSignedMoney(costs.grossProfitLoss, cur)} before, ${fmtSignedMoney(costs.netProfitLoss, cur)} after`],
+    ['Sharpe and the costs', `${sharpe(costs.sharpeWithout)} without costs, ${sharpe(costs.sharpe)} with these, ${sharpe(costs.sharpeAtTwice)} with twice`],
+    [
+      'Break-even',
+      costs.breakEvenMultiple == null
+        ? `none: ${costs.breakEvenMissing ?? ''}`
+        : `the Sharpe ratio stays above 0 up to about ${costs.breakEvenMultiple.toFixed(1)}× these costs (approximate: the sizing does not follow them)`,
+    ],
+  ]
+}
+
+/** Kelly before costs next to after them, and per position open together (engine 2.8.0 on): what live sizing does not read. */
+function kellyRows(r: DeviceResult): [label: string, value: string][] {
+  const kelly = r.analysis?.kelly
+  if (!kelly) return []
+  const rows: [string, string][] = []
+  if (r.analysis?.costs) rows.push(['Kelly before costs', kellyWords(kelly.gross)])
+  if (kelly.openTogether >= 1.05 && kelly.concurrencyAdjustedPercent != null && !kelly.net.whyUnusable)
+    rows.push([
+      'Kelly per position',
+      `${fmtPercent(kelly.concurrencyAdjustedPercent)} of the balance: Kelly over the ${kelly.openTogether.toFixed(1)} positions open together on average, which are nearly one bet`,
+    ])
+  return rows
+}
+
+const kellyWords = (kelly: DeviceResult['kelly']) =>
+  kelly.whyUnusable ? `not usable: ${kelly.whyUnusable}` : `${fmtPercent(kelly.percent)} of the balance (win rate ${fmtPercent(kelly.winProbability * 100, 1)}, payoff ${kelly.payoffRatio?.toFixed(2) ?? '–'})`
+
 /** The five figures a run from engine 2.7.0 on heads with. */
-function measuredHeadline(r: DeviceResult): Headline[] {
+function measuredHeadline(r: DeviceResult, cur: string): Headline[] {
   const returns = r.analysis?.returns
   const beta = r.marketBeta
   const drawdowns = r.analysis!.drawdowns
   const longest = drawdowns.longest ? `under water ${fmtCount(drawdowns.longest.underwaterDays)} days at most` : 'never below a peak'
+  const costs = r.analysis!.costs
   return [
-    { label: 'Return', value: `${arrow(r.profitLoss)}${fmtSignedPercent(r.returnPercent)}`, sub: `${fmtSignedMoney(r.profitLoss)}, final equity ${fmtMoney(r.finalEquity ?? r.finalBalance)}`, tone: tone(r.profitLoss) },
+    { label: 'Return', value: `${arrow(r.profitLoss)}${fmtSignedPercent(r.returnPercent)}`, sub: `${fmtSignedMoney(r.profitLoss, cur)}, final equity ${fmtMoney(r.finalEquity ?? r.finalBalance, cur)}${costs ? `, after ${fmtMoney(costs.paid, cur)} of costs` : ''}`, tone: tone(r.profitLoss) },
     returns
       ? { label: 'Sharpe a year', value: returns.sharpe.toFixed(2), sub: `[${returns.sharpeLow.toFixed(2)}, ${returns.sharpeHigh.toFixed(2)}] · ${fmtPercent(returns.psr * 100, 0)} likely above 0`, tone: sharpeTone(returns.psrEvidence) }
       : { label: 'Sharpe a year', value: '–', sub: r.analysis?.returnsMissing ?? undefined, tone: 'mute' },
@@ -66,11 +114,11 @@ function riskAdjustedRows(r: DeviceResult): [label: string, value: string][] {
 }
 
 /** The marked drawdowns and what was held. */
-function riskRows(r: DeviceResult): [label: string, value: string][] {
+function riskRows(r: DeviceResult, cur: string): [label: string, value: string][] {
   const { drawdowns, exposure } = r.analysis!
   return [
-    ['Drawdown, marked', `${fmtSignedMoney(drawdowns.maxDrawdown)} (${fmtPercent(drawdowns.maxDrawdownPercent)}), open positions valued at every candle’s close`],
-    ['Drawdown, closed', `${fmtSignedMoney(r.maxDrawdown)} (${fmtPercent(r.maxDrawdownPercent)}), measured at the closes only`],
+    ['Drawdown, marked', `${fmtSignedMoney(drawdowns.maxDrawdown, cur)} (${fmtPercent(drawdowns.maxDrawdownPercent)}), open positions valued at every candle’s close`],
+    ['Drawdown, closed', `${fmtSignedMoney(r.maxDrawdown, cur)} (${fmtPercent(r.maxDrawdownPercent)}), measured at the closes only`],
     ...drawdowns.deepest.map((episode, index): [string, string] => [
       `Fall ${index + 1}`,
       `${fmtPercent(episode.depthPercent)} from ${fmtTime(Date.parse(episode.peak))}, ${episode.recovered ? `back after ${fmtCount(episode.underwaterDays)} days` : `not back after ${fmtCount(episode.underwaterDays)} days`}`,
@@ -80,13 +128,14 @@ function riskRows(r: DeviceResult): [label: string, value: string][] {
 }
 
 /** What the closed trades say beyond the win rate. */
-function tradeRows(r: DeviceResult): [label: string, value: string][] {
+function tradeRows(r: DeviceResult, cur: string): [label: string, value: string][] {
   const t = r.analysis!.trades
   const rows: [string, string][] = [
     ['Profit factor', t.profitFactor == null ? '– (no loss)' : t.profitFactor.toFixed(2)],
     ['Expectancy', `${fmtSignedPercent(t.expectancyReturn * 100)} a trade, per position`],
-    ['Long and short', `${fmtSignedMoney(t.longProfitLoss)} long, ${fmtSignedMoney(t.shortProfitLoss)} short`],
+    ['Long and short', `${fmtSignedMoney(t.longProfitLoss, cur)} long, ${fmtSignedMoney(t.shortProfitLoss, cur)} short`],
   ]
+  if (r.analysis!.skippedOpens) rows.push(['Skipped opens', `${fmtCount(r.analysis!.skippedOpens)} open signals found no room in the budget`])
   if (t.impliedPrecision != null)
     rows.push([
       'Win rate needed',
@@ -96,27 +145,25 @@ function tradeRows(r: DeviceResult): [label: string, value: string][] {
 }
 
 /** The figures of a device run, as they were before engine 2.7.0 measured more. */
-function deviceFigures(r: DeviceResult): { headline: Headline[]; groups: FigureGroup[] } {
+function deviceFigures(r: DeviceResult, cur = ''): { headline: Headline[]; groups: FigureGroup[] } {
   const signedPercent = (fraction: number) => fmtSignedPercent(fraction * 100)
-  const kelly = r.kelly.whyUnusable
-    ? `not usable: ${r.kelly.whyUnusable}`
-    : `${fmtPercent(r.kelly.percent)} of the balance (win rate ${fmtPercent(r.kelly.winProbability * 100, 1)}, payoff ${r.kelly.payoffRatio?.toFixed(2) ?? '–'})`
+  const kelly = kellyWords(r.kelly)
   const basis = kellyBasisWords(r.sizing)
 
   return {
     headline: [
-      { label: 'Profit / loss', value: `${arrow(r.profitLoss)}${fmtSignedMoney(r.profitLoss)}`, sub: fmtSignedPercent(r.returnPercent), tone: tone(r.profitLoss) },
-      { label: 'Final balance', value: fmtMoney(r.finalBalance), sub: `from ${fmtMoney(r.initialBalance)}` },
+      { label: 'Profit / loss', value: `${arrow(r.profitLoss)}${fmtSignedMoney(r.profitLoss, cur)}`, sub: fmtSignedPercent(r.returnPercent), tone: tone(r.profitLoss) },
+      { label: 'Final balance', value: fmtMoney(r.finalBalance, cur), sub: `from ${fmtMoney(r.initialBalance, cur)}` },
       { label: 'Win rate', value: fmtPercent(r.winRate, 1), sub: `${fmtCount(r.closedTrades)} trades: ${fmtCount(r.won)} won, ${fmtCount(r.lost)} lost` },
-      { label: 'Max drawdown', value: fmtPercent(r.maxDrawdownPercent), sub: fmtSignedMoney(r.maxDrawdown), tone: r.maxDrawdown < 0 ? 'loss' : null },
+      { label: 'Max drawdown', value: fmtPercent(r.maxDrawdownPercent), sub: fmtSignedMoney(r.maxDrawdown, cur), tone: r.maxDrawdown < 0 ? 'loss' : null },
     ],
     groups: [
       {
         title: 'Result',
         rows: [
-          ['Starting balance', fmtMoney(r.initialBalance)],
-          ['Final balance', fmtMoney(r.finalBalance)],
-          ['Profit / loss', `${fmtSignedMoney(r.profitLoss)} (${fmtSignedPercent(r.returnPercent)})`],
+          ['Starting balance', fmtMoney(r.initialBalance, cur)],
+          ['Final balance', fmtMoney(r.finalBalance, cur)],
+          ['Profit / loss', `${fmtSignedMoney(r.profitLoss, cur)} (${fmtSignedPercent(r.returnPercent)})`],
         ],
       },
       {
@@ -124,15 +171,15 @@ function deviceFigures(r: DeviceResult): { headline: Headline[]; groups: FigureG
         rows: [
           ['Closed', `${fmtCount(r.closedTrades)}: ${fmtCount(r.won)} won, ${fmtCount(r.lost)} lost`],
           ['Win rate', fmtPercent(r.winRate, 1)],
-          ['Average per trade', fmtSignedMoney(r.averagePerTrade)],
-          ['Best trade', `${fmtSignedMoney(r.bestTrade)} (${fmtPercent(r.bestTradePercent)} of the balance)`],
+          ['Average per trade', fmtSignedMoney(r.averagePerTrade, cur)],
+          ['Best trade', `${fmtSignedMoney(r.bestTrade, cur)} (${fmtPercent(r.bestTradePercent)} of the balance)`],
           ['Average win', r.kelly.wins ? `${signedPercent(r.kelly.averageWin)} per position` : '–'],
           ['Average loss', r.kelly.losses ? `${signedPercent(-r.kelly.averageLoss)} per position` : '–'],
           ...(r.stillOpen ? ([['Still open', `${fmtCount(r.stillOpen)}, not counted in the balance`]] as [string, string][]) : []),
           ...(r.overlappingTrades ? ([['Overlapping', `${fmtCount(r.overlappingTrades)} of ${fmtCount(r.closedTrades)} trades were open at the same time as another`]] as [string, string][]) : []),
         ],
       },
-      { title: 'Risk', rows: [['Max drawdown', `${fmtSignedMoney(r.maxDrawdown)} (${fmtPercent(r.maxDrawdownPercent)})`]] },
+      { title: 'Risk', rows: [['Max drawdown', `${fmtSignedMoney(r.maxDrawdown, cur)} (${fmtPercent(r.maxDrawdownPercent)})`]] },
       { title: 'Against the market', rows: marketRows(r) },
       {
         title: 'Sizing',

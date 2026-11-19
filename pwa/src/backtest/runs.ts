@@ -1,4 +1,5 @@
 import type { StrategyInput } from '../api/commands.ts'
+import type { ConditionsForm } from './conditions.ts'
 import type { BacktestReport } from '../api/parse/strategies.ts'
 import type { BacktestAnalysis, DeviceBacktest, DeviceScenarios, MarketBeta, PathMethod, ScenarioSummary } from '../engine/types.ts'
 
@@ -75,6 +76,8 @@ export type DeviceRun = {
   method?: PathMethod
   result: DeviceResult
   monteCarlo?: KeptScenarios | null
+  /** The costs, fill, budget and currency it ran with, as typed (engine 2.8.0 on); absent for a run without any. */
+  conditions?: ConditionsForm
 }
 
 /** A run from before backtests moved to the device: the bot's printed report, and the curve its extra backtests drew. */

@@ -1,5 +1,20 @@
 import type { WorkerCall, WorkerReply } from './worker.ts'
-import type { CandleColumns, DeviceScenarios, EngineAnswer, EngineRequest, LevelsAnswer, SimulateAnswer, SummaryAnswer, SummaryRequest } from './types.ts'
+import type {
+  CandleColumns,
+  ConversionColumns,
+  ConversionPlanAnswer,
+  ConversionPlanRequest,
+  DeviceScenarios,
+  EngineAnswer,
+  EngineRequest,
+  LevelsAnswer,
+  SimulateAnswer,
+  SummaryAnswer,
+  SummaryRequest,
+} from './types.ts'
+
+/** No conversion: what a request without `conversion` sends. */
+export const noConversion: ConversionColumns = { time: [], close: [] }
 
 /** The strategies the engine runs: the pack the bot handed out (engine/pack.ts), identified by its SHA-256. */
 export type EngineStrategies = { sha256: string; bytes: Uint8Array }
@@ -11,13 +26,23 @@ export type EngineStrategies = { sha256: string; bytes: Uint8Array }
 export interface Engine {
   /** The strategy pack to run from now on, or null to run none. Another pack (or none) starts fresh workers. */
   setStrategies(strategies: EngineStrategies | null): void
-  /** Answers the request over the candles, or the bot's message for a wrong one; rejects when the engine cannot run. */
-  backtest(request: EngineRequest, candles: CandleColumns, signal?: AbortSignal): Promise<EngineAnswer>
+  /**
+   * Answers the request over the candles, or the bot's message for a wrong one; rejects when the engine cannot run. A
+   * request with a `conversion` needs its hops' candles in `conversion`.
+   */
+  backtest(request: EngineRequest, candles: CandleColumns, signal?: AbortSignal, conversion?: ConversionColumns): Promise<EngineAnswer>
   /**
    * Backtests scenarios 0 to `count` − 1 of alternative price histories, shared out to several workers, and answers
    * them in scenario order. `onProgress` hears how many are done after each share.
    */
-  simulate(request: EngineRequest, candles: CandleColumns, count: number, options?: { signal?: AbortSignal; onProgress?: (done: number, total: number) => void }): Promise<SimulateAnswer>
+  simulate(
+    request: EngineRequest,
+    candles: CandleColumns,
+    count: number,
+    options?: { signal?: AbortSignal; onProgress?: (done: number, total: number) => void; conversion?: ConversionColumns },
+  ): Promise<SimulateAnswer>
+  /** Which of the device's markets turn the symbol's quote currency into another (engine 2.8.0 on), or why none does. */
+  planConversion(request: ConversionPlanRequest, signal?: AbortSignal): Promise<ConversionPlanAnswer>
   /** Sums up the scenarios and ranks the real history among them. */
   summarize(request: SummaryRequest, signal?: AbortSignal): Promise<SummaryAnswer>
   /** The price levels the strategy's rules compare the last `count` candles with, from the strategy itself, for a chart. */
@@ -139,7 +164,7 @@ export function createEngine({ base = engineBase(), workers = poolSize(), spawn 
   }
 
   const call = async (index: number, message: Message, signal?: AbortSignal) => {
-    if (message.kind !== 'summarize' && message.kind !== 'version') await ensureLoaded(index, signal)
+    if (message.kind !== 'summarize' && message.kind !== 'version' && message.kind !== 'planConversion') await ensureLoaded(index, signal)
     return send(index, message, signal)
   }
 
@@ -151,11 +176,11 @@ export function createEngine({ base = engineBase(), workers = poolSize(), spawn 
       if (running.length) stop(new Error('The strategies changed while the engine worked; run it again.'))
     },
 
-    async backtest(request, candles, signal) {
-      return JSON.parse(await call(0, { kind: 'backtest', request: JSON.stringify(request), candles }, signal)) as EngineAnswer
+    async backtest(request, candles, signal, conversion = noConversion) {
+      return JSON.parse(await call(0, { kind: 'backtest', request: JSON.stringify(request), candles, conversion }, signal)) as EngineAnswer
     },
 
-    async simulate(request, candles, count, { signal, onProgress } = {}) {
+    async simulate(request, candles, count, { signal, onProgress, conversion = noConversion } = {}) {
       const size = Math.max(1, Math.min(workers, count))
       const step = shareSize(count, size)
       const shares: [first: number, count: number][] = []
@@ -169,7 +194,7 @@ export function createEngine({ base = engineBase(), workers = poolSize(), spawn 
         Array.from({ length: size }, async (_, index) => {
           while (taken < shares.length && !failure) {
             const [first, share] = shares[taken++]!
-            const answer = JSON.parse(await call(index, { kind: 'simulate', request: text, candles, first, count: share }, signal)) as SimulateAnswer
+            const answer = JSON.parse(await call(index, { kind: 'simulate', request: text, candles, first, count: share, conversion }, signal)) as SimulateAnswer
             if (!answer.ok) failure = answer
             else {
               answers.push(answer)
@@ -188,6 +213,10 @@ export function createEngine({ base = engineBase(), workers = poolSize(), spawn 
         prices: answers.flatMap((answer) => answer.prices).sort((a, b) => a.scenario - b.scenario),
         computedMs: Math.max(...answers.map((answer) => answer.computedMs)),
       }
+    },
+
+    async planConversion(request, signal) {
+      return JSON.parse(await call(0, { kind: 'planConversion', request: JSON.stringify(request) }, signal)) as ConversionPlanAnswer
     },
 
     async summarize(request, signal) {

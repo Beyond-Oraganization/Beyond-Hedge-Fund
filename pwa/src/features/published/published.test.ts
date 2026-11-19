@@ -13,7 +13,7 @@ import { newestBySetup, parsePublished, publishArgs, ranSetup, renameArgs, teste
 const row = (patch: Partial<PublishedBacktest> = {}): PublishedBacktest => ({
   id: 1, setupId: 1, setupName: 'Gold trend, steady', title: 'Gold 2024–2026', note: null, strategy: '', market: 'XAUUSD 1h', strategySetup: '', sizing: 'percent:25',
   from: '2024-01-01T00:00:00Z', to: '2026-11-01T00:00:00Z', candles: null, initialBalance: 1000, finalBalance: 1412, returnPercent: 41.2, trades: 86, wins: 51,
-  losses: 35, winRate: 59.3, maxDrawdownPercent: 9.4, backtestId: null, publishedBy: 'alice', publishedAt: '2026-11-16T10:00:00Z', updatedAt: '2026-11-16T10:00:00Z', measures: null, ...patch,
+  losses: 35, winRate: 59.3, maxDrawdownPercent: 9.4, backtestId: null, publishedBy: 'alice', publishedAt: '2026-11-16T10:00:00Z', updatedAt: '2026-11-16T10:00:00Z', measures: null, conditions: '', ...patch,
 })
 
 const definition = {
@@ -80,6 +80,23 @@ describe('the commands', () => {
     expect(args.slice(args.indexOf('--sharpe'), -1)).toEqual([
       '--sharpe', '5.78', '--psr', '0.836', '--beta', '0.645614', '--alpha', '73.6404', '--alpha-t', '5.75961', '--equity-drawdown', '-5', '--risk-free', '0',
     ])
+  })
+
+  it('sends the conditions of a run with costs, and nothing for one without', () => {
+    const plain = keep(deviceAnswer())
+    const costed = { ...plain, analysis: { ...plain.analysis!, conditions: 'spread 0.3, in EUR (÷ EURUSD)' } }
+
+    expect(publishArgs(3, plain, { title: 'Gold', note: '' })).not.toContain('--conditions')
+    const args = publishArgs(3, costed, { title: 'Gold', note: '' })
+    expect(args.slice(args.indexOf('--conditions'), args.indexOf('--conditions') + 2)).toEqual(['--conditions', 'spread 0.3, in EUR (÷ EURUSD)'])
+  })
+
+  it('reads the conditions a backtest was published with, and none from an older bot', () => {
+    const older: Partial<PublishedBacktest> = row()
+    delete older.conditions
+    const parsed = parsePublished({ json: [row({ conditions: 'spread 0.3' }), older] } as unknown as CommandResult)
+
+    expect(parsed.ok && parsed.value.map((p) => p.conditions)).toEqual(['spread 0.3', ''])
   })
 
   it('reads the measures the bot published with a backtest, and none from an older bot', () => {

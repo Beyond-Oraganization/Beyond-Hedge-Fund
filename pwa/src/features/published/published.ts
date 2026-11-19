@@ -39,6 +39,8 @@ export type PublishedBacktest = {
   updatedAt: string
   /** Sharpe, beta, alpha (a fraction a year) and the marked drawdown, bot 2.7.0 on; null when none was given. */
   measures: PublishedMeasures | null
+  /** The costs, fill, budget and currency it ran with, as the backtest describes them (bot 2.8.0 on); "" for none. */
+  conditions: string
 }
 
 export type PublishedMeasures = { sharpe: number | null; psr: number | null; beta: number | null; annualAlpha: number | null; alphaT: number | null; equityDrawdownPercentage: number | null }
@@ -65,6 +67,7 @@ export function parsePublished(result: CommandResult): Parsed<PublishedBacktest[
             trades: num(p.trades) ?? 0, wins: num(p.wins) ?? 0, losses: num(p.losses) ?? 0, winRate: num(p.winRate) ?? 0,
             maxDrawdownPercent: num(p.maxDrawdownPercent) ?? 0, backtestId: num(p.backtestId), publishedBy: str(p.publishedBy) ?? '',
             publishedAt: str(p.publishedAt) ?? '', updatedAt: str(p.updatedAt) ?? '', measures: measuresOf(p.measures),
+            conditions: str(p.conditions) ?? '',
           }]
         : [],
     ),
@@ -132,6 +135,8 @@ function measureArgs(result: DeviceResult): string[] {
     ...(beta ? ['--beta', round(beta.beta), '--alpha', round(beta.annualAlpha * 100), ...(beta.alphaT == null ? [] : ['--alpha-t', round(beta.alphaT)])] : []),
     ...(result.analysis ? ['--equity-drawdown', round(result.analysis.drawdowns.maxDrawdownPercent)] : []),
     ...(beta || returns ? ['--risk-free', round((beta?.riskFree ?? returns?.riskFree ?? 0) * 100)] : []),
+    // Bot 2.8.0 on: a run with costs, a fill, a budget or a currency says so, so nobody reads it as a plain backtest.
+    ...(result.analysis?.conditions ? ['--conditions', result.analysis.conditions] : []),
   ]
 }
 

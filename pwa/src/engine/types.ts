@@ -10,6 +10,28 @@ type Iso = string
 /** The candles of one market on this device, as columns: open times in Unix seconds, then prices and volumes. */
 export type CandleColumns = { time: Float64Array; open: Float64Array; high: Float64Array; low: Float64Array; close: Float64Array; volume: Float64Array }
 
+/**
+ * The candles of a request's conversion hops (engine 2.8.0 on): open times in Unix seconds and closes, one hop after
+ * another in `request.conversion.hops` order (the bot's ADR 0007). Empty without a conversion.
+ */
+export type ConversionColumns = { time: number[]; close: number[] }
+
+/** A market's costs as the engine takes them: price units, `commission` in percent a side, swaps in percent a year (−4 charges 4 %). */
+export type CostsRequest = { spread?: number; slippage?: number; commission?: number; swapLong?: number; swapShort?: number }
+
+/** When a signal fills: at its candle's close (the default) or the next candle's open. */
+export type FillAt = 'Close' | 'NextOpen'
+
+/** One market of a conversion; `count` 0 (or left out) for the backtested market itself. */
+export type ConversionHop = { symbol: string; interval?: string; count?: number }
+
+/** What `PlanConversion` takes: the symbol, the currency to measure in, and the markets this device has candles of. */
+export type ConversionPlanRequest = { symbol: string; currency: string; markets: string[] }
+
+export type ConversionPlanStep = { symbol: string; divide: boolean; ownMarket: boolean }
+
+export type DeviceConversionPlan = { ok: true; engine: string; from: string; to: string; steps: ConversionPlanStep[] }
+
 export type EngineRequest = {
   strategy: string
   symbol: string
@@ -31,6 +53,13 @@ export type EngineRequest = {
   scenarios?: { method: PathMethod; seed: number } | null
   /** What cash earns a year, in percent, taken off both returns for alpha; 0 when left out. */
   riskFree?: number
+  /** Engine 2.8.0 on: what each fill and night costs; none when left out. */
+  costs?: CostsRequest | null
+  fill?: FillAt
+  /** A live budget's money: replaces the balance and limits the positions open at once. */
+  budget?: number | null
+  /** The currency to measure in and the markets that convert into it, whose candles go in the conversion columns. */
+  conversion?: { currency: string; hops: ConversionHop[] } | null
 }
 
 /** How a Monte Carlo makes its alternative price histories (the bot's Core/Backtesting/PricePaths.cs). */
@@ -50,6 +79,9 @@ export type DeviceTrade = {
   return: number
   balanceAfter: number
   overlapped: boolean
+  /** Engine 2.8.0 on: what its costs took, and its return before them. */
+  costs?: number
+  grossReturn?: number
 }
 
 /**
@@ -243,10 +275,37 @@ export type BacktestAnalysis = {
   /** Each day's distance below the peak so far, in percent (zero or negative). */
   underwater: { day: string; percent: number }[]
   daysPerYear: number
+  /** Engine 2.8.0 on: what the costs did; null without costs. */
+  costs?: CostSensitivity | null
+  kelly?: KellyFigures | null
+  /** Open signals a budget had no room for. */
+  skippedOpens?: number
+  /** The currency every amount is in when the run converts; null for the market's quote. */
+  currency?: string | null
+  /** The run's conditions in one line; "" without any. */
+  conditions?: string
 }
 
+/**
+ * What a run's costs did (Core/Backtesting/BacktestAnalysis.cs): what they took, the Sharpe ratio at none, at these and at
+ * twice them, and the multiple that brings it to 0 (approximate: the sizing does not follow the costs).
+ */
+export type CostSensitivity = {
+  paid: number
+  grossProfitLoss: number
+  netProfitLoss: number
+  sharpeWithout: number | null
+  sharpe: number | null
+  sharpeAtTwice: number | null
+  breakEvenMultiple: number | null
+  breakEvenMissing: string | null
+}
+
+/** Kelly before and after costs, and the net percent over the positions open together on average. */
+export type KellyFigures = { gross: KellyEstimate; net: KellyEstimate; openTogether: number; concurrencyAdjustedPercent: number | null }
+
 /** The equity at a day's end, its open positions valued at the day's last close. */
-export type DailyEquityPoint = { day: string; equity: number; close: number; inMarket: boolean }
+export type DailyEquityPoint = { day: string; equity: number; close: number; inMarket: boolean; costsToDate?: number; exposure?: number }
 
 export type DeviceBacktest = {
   ok: true
@@ -311,3 +370,5 @@ export type EngineAnswer = DeviceBacktest | EngineFailure
 export type SimulateAnswer = DeviceScenarios | EngineFailure
 
 export type SummaryAnswer = DeviceSummary | EngineFailure
+
+export type ConversionPlanAnswer = DeviceConversionPlan | EngineFailure

@@ -6,6 +6,23 @@ import { cmd } from '../api/commands.ts'
 import type { SessionSizing } from '../api/types.ts'
 import { curveByTime, endedAbove, isDeviceRun, keep, keepScenarios, kellyShare, METHOD_NAMES, type DeviceRun, type KeptScenarios, type SavedRun } from '../backtest/runs.ts'
 import { clearRuns, loadDetails, loadRuns, saveRun } from '../backtest/saved.ts'
+import {
+  conditionErrors,
+  conditionsRequest,
+  costsKey,
+  costsPart,
+  hopsFor,
+  isPlain,
+  NO_CONDITIONS,
+  quoteOf,
+  requestHops,
+  routeWords,
+  storedMarkets,
+  type ConditionsForm,
+  type PlannedHop,
+} from '../backtest/conditions.ts'
+import { useMarketCosts } from '../backtest/useMarketCosts.ts'
+import { ConditionsFields } from '../components/backtest/ConditionsFields.tsx'
 import { FailurePanel } from '../components/Answer.tsx'
 import { MonteCarloSection, ReportFigures } from '../components/backtest/Report.tsx'
 import { MarketBetaChart } from '../components/backtest/MarketBetaChart.tsx'
@@ -19,11 +36,12 @@ import { StrategyForm } from '../components/StrategyForm.tsx'
 import { Button, ButtonLink, Callout, EmptyState, Section, Skeleton } from '../components/ui.tsx'
 import { readCopy, updateCopy, type CopyInfo } from '../data/candles.ts'
 import { useEngine, useEngineVersion } from '../engine/context.ts'
-import { EngineCancelled } from '../engine/engine.ts'
-import type { PathMethod } from '../engine/types.ts'
+import { EngineCancelled, type Engine } from '../engine/engine.ts'
+import type { ConversionColumns, ConversionHop, PathMethod } from '../engine/types.ts'
 import { fmtCount, fmtMoney, fmtPercent, fmtSignedMoney, fmtSignedPercent, fmtTime, tone } from '../format.ts'
 import { useMarkets, useStatus, useStrategies } from '../hooks/data.ts'
 import { keepsEverything } from '../storage/local-store.ts'
+import { db } from '../state/db.ts'
 import { offerLink } from '../features/menu/menu.ts'
 import { PublishCard } from '../features/published/PublishCard.tsx'
 import { applySetup, configFromInput, initialConfig, toInput, validateConfig, type StrategyConfig } from '../strategy/config.ts'
@@ -56,6 +74,17 @@ function phaseWords(phase: Phase): string {
   return 'Summing up the alternative histories…'
 }
 
+/**
+ * The stored markets that turn the symbol's quote currency into `currency`, as the engine plans them, or why there are
+ * none. The engine plans; this picks each market's shortest stored interval.
+ */
+async function planRoute(engine: Engine, symbol: string, currency: string, stored: ReturnType<typeof storedMarkets>, signal?: AbortSignal): Promise<{ hops: PlannedHop[] } | { error: string }> {
+  const plan = await engine.planConversion({ symbol, currency, markets: [...new Set(stored.map((market) => market.symbol))] }, signal)
+  if (!plan.ok) return { error: plan.error.message }
+  const hops = hopsFor(plan.steps, stored)
+  return hops ? { hops } : { error: `No stored market converts ${plan.from} into ${plan.to}.` }
+}
+
 /** A seed for one Monte Carlo: every worker makes its scenarios from it. */
 const newSeed = () => Math.floor(Math.random() * 2 ** 31)
 
@@ -80,6 +109,9 @@ export default function Backtest() {
   const [to, setTo] = useState('')
   const [scenarios, setScenarios] = useState<(typeof SCENARIOS)[number]>('200')
   const [method, setMethod] = useState<PathMethod>('Bootstrap')
+  const [conditions, setConditions] = useState<ConditionsForm>(NO_CONDITIONS)
+  // How the chosen currency is reached, for the symbol and currency it was worked out for.
+  const [route, setRoute] = useState<{ key: string; hops: PlannedHop[] | null; text: string } | null>(null)
   const [touched, setTouched] = useState(false)
   const [phase, setPhase] = useState<Phase | null>(null)
   const [failure, setFailure] = useState<CommandFailure | null>(null)
@@ -105,6 +137,30 @@ export default function Backtest() {
   const [symbol, interval] = (params.get('market') ?? '').split(' ')
   const draft = edited ?? (definitions && rows ? initialConfig(definitions, rows, { symbol, interval, strategy: params.get('strategy') }) : null)
   const botVersion = status.data?.parsed.ok ? status.data.parsed.value.version : null
+  const marketSymbol = draft?.market.split(' ')[0] ?? ''
+  const stored = useMemo(() => (rows ? storedMarkets(rows) : []), [rows])
+  // A market's costs come back when it is chosen again; a run remembers the ones it used.
+  const remember = useMarketCosts(connection?.id, marketSymbol || undefined, (costs) => setConditions((form) => ({ ...form, ...costs })))
+  const routeKey = conditions.currency && marketSymbol ? `${marketSymbol}:${conditions.currency}` : ''
+  useEffect(() => {
+    if (!routeKey || !stored.length) return
+    let current = true
+    const [symbol, currency] = routeKey.split(':') as [string, string]
+    void planRoute(engine(), symbol, currency, stored)
+      .then((planned) => {
+        if (!current) return
+        setRoute(
+          'hops' in planned
+            ? { key: routeKey, hops: planned.hops, text: planned.hops.length ? `Converted at each moment: ${routeWords(planned.hops)}.` : `${symbol} is already priced in ${currency}.` }
+            : { key: routeKey, hops: null, text: planned.error },
+        )
+      })
+      .catch((error: unknown) => current && setRoute({ key: routeKey, hops: null, text: (error as Error).message }))
+    return () => {
+      current = false
+    }
+  }, [routeKey, stored, engine])
+  const routeShown = route && route.key === routeKey ? { text: route.text, ok: route.hops != null } : null
   useEffect(() => {
     if (connection) void loadRuns(connection.id).then(setSaved)
   }, [connection])
@@ -116,6 +172,8 @@ export default function Backtest() {
     if (from && to && from >= to) found.to = 'The end must be after the start.'
     return found
   }, [draft, definition, balance, from, to])
+  // Apart from the strategy's errors: a strategy may have a parameter named like a cost (the sample's "spread").
+  const costErrors = useMemo(() => conditionErrors(conditions), [conditions])
 
   /** Shows a saved run, with its Monte Carlo's paths when this device kept them. */
   const show = async (run: SavedRun) => {
@@ -125,10 +183,39 @@ export default function Backtest() {
     if (details) setCurrent({ ...run, monteCarlo: { ...run.monteCarlo, details } })
   }
 
+  /**
+   * The conversion of a run in another currency: the engine's plan, each hop's market copied up to date on this device,
+   * and their candles one after another as the engine takes them. None for the market's own currency.
+   */
+  const prepareConversion = async (symbol: string, signal: AbortSignal): Promise<{ conversion: { currency: string; hops: ConversionHop[] } | null; columns: ConversionColumns | undefined }> => {
+    if (!conditions.currency || !connection) return { conversion: null, columns: undefined }
+    const planned = await planRoute(engine(), symbol, conditions.currency, stored, signal)
+    if ('error' in planned) throw new Error(planned.error)
+    if (!planned.hops.length) return { conversion: null, columns: undefined }
+    const columns: ConversionColumns = { time: [], close: [] }
+    const counts: number[] = []
+    for (const hop of planned.hops) {
+      if (hop.market === 'own') {
+        counts.push(0)
+        continue
+      }
+      const through = `${hop.market.symbol} ${hop.market.interval}`
+      setPhase({ step: 'candles', market: through, info: null })
+      await updateCopy(connection.id, through, read, { signal, onProgress: (info) => setPhase({ step: 'candles', market: through, info }) })
+      const copy = await readCopy(connection.id, through)
+      if (!copy) throw new Error(`This device has no ${through} candles to convert with.`)
+      columns.time.push(...copy.time)
+      columns.close.push(...copy.close)
+      counts.push(copy.time.length)
+    }
+    return { conversion: { currency: conditions.currency, hops: requestHops(planned.hops, counts) }, columns }
+  }
+
   /** Brings this device's candles up to date, asks the bot for its Kelly when the sizing needs it, then backtests here. */
   const start = async () => {
     setTouched(true)
-    if (!draft || !connection || Object.keys(errors).length) return
+    if (!draft || !connection || Object.keys(errors).length || Object.keys(costErrors).length) return
+    if (conditions.currency && routeShown && !routeShown.ok) return
     const input = toInput(draft, definition)
     const market = `${input.symbol} ${input.interval}`
     const asked = Number(scenarios)
@@ -141,6 +228,8 @@ export default function Backtest() {
       await updateCopy(connection.id, market, read, { signal: controller.signal, onProgress: (info) => setPhase({ step: 'candles', market, info }) })
       const candles = await readCopy(connection.id, market)
       if (!candles) throw new Error(`This device has no ${market} candles.`)
+      void remember(conditions)
+      const { conversion, columns } = await prepareConversion(input.symbol, controller.signal)
       const share = kellyShare(input.sizing)
       let kelly: SessionSizing['kelly'] = null
       if (share != null) {
@@ -160,8 +249,10 @@ export default function Backtest() {
         balance: Number(balance),
         from: utc(dateOrNull(from)),
         to: utc(dateOrNull(to)),
+        ...conditionsRequest(conditions, Number(balance)),
+        ...(conversion ? { conversion } : {}),
       }
-      const answer = await engine().backtest(request, candles, controller.signal)
+      const answer = await engine().backtest(request, candles, controller.signal, columns)
       if (!answer.ok) return setProblem(answer.error.message)
       let monteCarlo: KeptScenarios | null = null
       if (asked) {
@@ -169,6 +260,7 @@ export default function Backtest() {
         const simulated = await engine().simulate({ ...request, scenarios: { method, seed: newSeed() } }, candles, asked, {
           signal: controller.signal,
           onProgress: (done, total) => setPhase({ step: 'scenarios', done, total, method }),
+          conversion: columns,
         })
         if (!simulated.ok) return setProblem(simulated.error.message)
         setPhase({ step: 'summary' })
@@ -178,7 +270,7 @@ export default function Backtest() {
       }
       const run: DeviceRun = {
         kind: 'device', id: `${Date.now()}`, at: Date.now(), input, balance: Number(balance), from: dateOrNull(from), to: dateOrNull(to),
-        scenarios: asked, method, result: keep(answer), monteCarlo,
+        scenarios: asked, method, result: keep(answer), monteCarlo, ...(isPlain(conditions) ? {} : { conditions }),
       }
       setCurrent(run)
       setSaved(await saveRun(connection.id, run, { keepEverything: keepsEverything() }))
@@ -228,7 +320,12 @@ export default function Backtest() {
           >
             <StrategyForm definitions={definitions} markets={rows} config={draft} onChange={setDraft} errors={touched ? errors : {}} />
             <div className="form-grid">
-              <Field id={ids.balance} label="Starting balance" error={touched ? errors.balance : undefined} hint="Simulated; in the symbol’s quote currency.">
+              <Field
+                id={ids.balance}
+                label={conditions.budgeted ? 'Budget' : 'Starting balance'}
+                error={touched ? errors.balance : undefined}
+                hint={`Simulated; in ${conditions.currency || (quoteOf(marketSymbol) ?? 'the symbol’s quote currency')}.`}
+              >
                 <input
                   id={ids.balance}
                   className="mono"
@@ -248,6 +345,7 @@ export default function Backtest() {
                 <input id={ids.to} type="date" value={to} onChange={(event) => setTo(event.target.value)} aria-describedby={describedBy(ids.to, 'hint', touched ? errors.to : null)} />
               </Field>
             </div>
+            <ConditionsFields form={conditions} onChange={setConditions} errors={touched ? costErrors : {}} symbol={marketSymbol} route={routeShown} />
             <Segmented
               name="monte-carlo"
               legend="Monte Carlo"
@@ -379,7 +477,11 @@ export default function Backtest() {
             ) : null}
             <Callout label="What a backtest leaves out">
               <p>
-                No fees, spread or margin.{' '}
+                {device?.result.analysis?.costs
+                  ? 'The costs entered, and no margin or stop-outs.'
+                  : device?.result.analysis?.conditions != null
+                    ? 'No costs unless entered under Costs and conditions; no margin or stop-outs.'
+                    : 'No fees, spread or margin.'}{' '}
                 {device?.result.analysis
                   ? 'Positions still open at the end are in the final equity and the marked drawdown, not in the balance.'
                   : 'Positions still open at the end are not in the balance.'}{' '}
@@ -477,9 +579,14 @@ export default function Backtest() {
                       // Fitted to the catalog as it is now: a run from before rules had parameters that may be gone.
                       const used = configFromInput(run.input)
                       const known = definitions?.find((d) => d.name === used.strategy)
-                      setDraft(known ? applySetup(used, used, known).config : used)
-                      setTouched(true)
-                      window.scrollTo({ top: 0 })
+                      const restored = (isDeviceRun(run) && run.conditions) || NO_CONDITIONS
+                      // Its costs become the market's, so choosing the market (which reads them back) keeps them.
+                      void (connection ? db.set(costsKey(connection.id, run.input.symbol), costsPart(restored)) : Promise.resolve()).then(() => {
+                        setDraft(known ? applySetup(used, used, known).config : used)
+                        setConditions(restored)
+                        setTouched(true)
+                        window.scrollTo({ top: 0 })
+                      })
                     }}
                   >
                     Use
@@ -565,7 +672,9 @@ const COMPARED_ROWS: CompareRow[] = [
     },
   ],
   ['Drawdown, marked', (run) => (isDeviceRun(run) && run.result.analysis ? fmtPercent(run.result.analysis.drawdowns.maxDrawdownPercent) : '–')],
-  ['Final equity', (run) => (isDeviceRun(run) && run.result.finalEquity != null ? fmtMoney(run.result.finalEquity) : '–')],
+  ['Final equity', (run) => (isDeviceRun(run) && run.result.finalEquity != null ? fmtMoney(run.result.finalEquity, run.result.analysis?.currency ?? '') : '–')],
+  ['Conditions', (run) => (isDeviceRun(run) && run.result.analysis?.conditions ? run.result.analysis.conditions : 'none')],
+  ['Costs paid', (run) => (isDeviceRun(run) && run.result.analysis?.costs ? fmtMoney(run.result.analysis.costs.paid, run.result.analysis.currency ?? '') : '–')],
   ['Trades', (run) => (isDeviceRun(run) ? `${run.result.closedTrades} (${fmtPercent(run.result.winRate, 1)} won)` : `${run.report.trades} (${fmtPercent(run.report.winRate, 1)} won)`)],
   [
     'Drawdown, closed',
