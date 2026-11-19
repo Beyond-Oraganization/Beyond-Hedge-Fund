@@ -37,6 +37,16 @@ export type PublishedBacktest = {
   publishedBy: string
   publishedAt: string
   updatedAt: string
+  /** Sharpe, beta, alpha (a fraction a year) and the marked drawdown, bot 2.7.0 on; null when none was given. */
+  measures: PublishedMeasures | null
+}
+
+export type PublishedMeasures = { sharpe: number | null; psr: number | null; beta: number | null; annualAlpha: number | null; alphaT: number | null; equityDrawdownPercentage: number | null }
+
+function measuresOf(value: unknown): PublishedMeasures | null {
+  if (!isObject(value)) return null
+  const m = { sharpe: num(value.sharpe), psr: num(value.psr), beta: num(value.beta), annualAlpha: num(value.annualAlpha), alphaT: num(value.alphaT), equityDrawdownPercentage: num(value.equityDrawdownPercentage) }
+  return Object.values(m).some((v) => v != null) ? m : null
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
@@ -54,7 +64,7 @@ export function parsePublished(result: CommandResult): Parsed<PublishedBacktest[
             candles: num(p.candles), initialBalance: num(p.initialBalance) ?? 0, finalBalance: num(p.finalBalance) ?? 0, returnPercent: num(p.returnPercent) ?? 0,
             trades: num(p.trades) ?? 0, wins: num(p.wins) ?? 0, losses: num(p.losses) ?? 0, winRate: num(p.winRate) ?? 0,
             maxDrawdownPercent: num(p.maxDrawdownPercent) ?? 0, backtestId: num(p.backtestId), publishedBy: str(p.publishedBy) ?? '',
-            publishedAt: str(p.publishedAt) ?? '', updatedAt: str(p.updatedAt) ?? '',
+            publishedAt: str(p.publishedAt) ?? '', updatedAt: str(p.updatedAt) ?? '', measures: measuresOf(p.measures),
           }]
         : [],
     ),
@@ -107,7 +117,21 @@ export function publishArgs(setupId: number, result: DeviceResult, words: { titl
     '--initial', plainNumber(result.initialBalance), '--final', plainNumber(result.finalBalance),
     '--trades', String(result.closedTrades), '--wins', String(result.won), '--losses', String(result.lost),
     '--drawdown', plainNumber(Math.round(result.maxDrawdownPercent * 10_000) / 10_000),
+    ...measureArgs(result),
     '--json',
+  ]
+}
+
+/** Sharpe, beta and alpha of a run from engine 2.7.0 on, as `published add` takes them (bot 2.7.0 on); none for older runs. */
+function measureArgs(result: DeviceResult): string[] {
+  const returns = result.analysis?.returns
+  const beta = result.marketBeta
+  const round = (value: number) => plainNumber(Math.round(value * 1e6) / 1e6)
+  return [
+    ...(returns ? ['--sharpe', round(returns.sharpe), '--psr', round(returns.psr)] : []),
+    ...(beta ? ['--beta', round(beta.beta), '--alpha', round(beta.annualAlpha * 100), ...(beta.alphaT == null ? [] : ['--alpha-t', round(beta.alphaT)])] : []),
+    ...(result.analysis ? ['--equity-drawdown', round(result.analysis.drawdowns.maxDrawdownPercent)] : []),
+    ...(beta || returns ? ['--risk-free', round((beta?.riskFree ?? returns?.riskFree ?? 0) * 100)] : []),
   ]
 }
 

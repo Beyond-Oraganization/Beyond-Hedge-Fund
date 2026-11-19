@@ -44,6 +44,19 @@ describe('a device backtest as the page keeps it', () => {
   })
 })
 
+describe('the analysis as the page keeps it (2.7.0 on)', () => {
+  it('keeps the analysis, and the marked equity and distance below the peak as [ms, value] pairs', () => {
+    const kept = keep(deviceAnswer())
+
+    expect(kept.analysis?.returns?.sharpe).toBe(5.78)
+    expect(kept.finalEquity).toBe(1004.95)
+    expect(kept.equityDays?.[1]).toEqual([Date.parse('2025-01-07T00:00:00Z'), 950])
+    expect(kept.underwater?.[1]).toEqual([Date.parse('2025-01-07T00:00:00Z'), -5])
+    expect(kept).not.toHaveProperty('dailyEquity')
+    expect(kept.analysis).not.toHaveProperty('underwater')
+  })
+})
+
 describe('beta and alpha as the page keeps them', () => {
   it('keeps the figures and each day as a [market, strategy] pair', () => {
     const kept = keep(deviceAnswer())
@@ -57,14 +70,16 @@ describe('beta and alpha as the page keeps them', () => {
     const rows = Object.fromEntries(figuresOf(run(deviceAnswer())).groups.find((group) => group.title === 'Against the market')!.rows)
 
     expect(rows).toEqual({
-      Beta: '0.65: it moved with 65% of the market’s daily move',
-      Alpha: '+73.64% a year, t 5.8',
+      Beta: '0.65: it moved with 65% of the market’s daily move (95% between 0.59 and 0.71)',
+      Alpha: '+73.64% a year, t 5.8 (95% between +48.58% and +98.70%)',
       Fit: 'R² 0.99 over 5 days',
       'In the market': '60% of days',
+      'Information ratio': '52.55 a year',
+      'Holding the market': '+8.90%, Sharpe 0.40, down -10.00% at most',
     })
     const short = deviceAnswer({ marketBeta: { ...deviceAnswer().marketBeta!, beta: -0.32 } })
-    expect(Object.fromEntries(figuresOf(run(short)).groups.find((group) => group.title === 'Against the market')!.rows).Beta).toBe(
-      '-0.32: it moved against the market, by 32% of its daily move',
+    expect(Object.fromEntries(figuresOf(run(short)).groups.find((group) => group.title === 'Against the market')!.rows).Beta).toMatch(
+      /^-0\.32: it moved against the market, by 32% of its daily move/,
     )
   })
 
@@ -79,8 +94,16 @@ describe('beta and alpha as the page keeps them', () => {
 })
 
 describe('the figures of a run', () => {
-  it('heads with four figures and groups the rest', () => {
+  it('heads with return, Sharpe, beta, alpha and the marked drawdown, and groups the rest', () => {
     const { headline, groups } = figuresOf(run())
+
+    expect(headline.map((figure) => figure.label)).toEqual(['Return', 'Sharpe a year', 'Beta to XAUUSD', 'Alpha a year', 'Drawdown, marked'])
+    expect(groups.map((group) => group.title)).toEqual(['Result', 'Risk-adjusted', 'Against the market', 'Risk', 'Trades', 'Sizing', 'Run'])
+  })
+
+  it('heads a run saved before engine 2.7.0 with the four figures it had', () => {
+    const { analysis: _analysis, ...before } = keep(deviceAnswer())
+    const { headline, groups } = figuresOf({ ...run(), result: before })
 
     expect(headline.map((figure) => figure.label)).toEqual(['Profit / loss', 'Final balance', 'Win rate', 'Max drawdown'])
     expect(groups.map((group) => group.title)).toEqual(['Result', 'Trades', 'Risk', 'Against the market', 'Sizing', 'Run'])

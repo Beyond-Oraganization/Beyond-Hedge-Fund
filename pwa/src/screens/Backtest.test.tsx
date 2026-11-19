@@ -144,12 +144,45 @@ describe('Backtest', () => {
     expect(screen.queryByRole('radiogroup', { name: 'Alternative histories by' })).not.toBeInTheDocument()
   })
 
-  it('heads the report with four figures and keeps the others in a table that starts closed', async () => {
+  it('heads the report with return, Sharpe, beta, alpha and the marked drawdown, and keeps the others in a table that starts closed', async () => {
     show()
     await run()
 
-    for (const label of ['Profit / loss', 'Final balance', 'Win rate', 'Max drawdown']) expect((await screen.findAllByText(label)).length).toBeGreaterThan(0)
+    const tiles = (await screen.findByText('Sharpe a year', { selector: '.figure > .label' })).closest('.figures')!
+    expect([...tiles.querySelectorAll('.figure > .label')].map((label) => label.textContent)).toEqual(['Return', 'Sharpe a year', 'Beta to XAUUSD', 'Alpha a year', 'Drawdown, marked'])
+    expect(screen.getByText('5.78', { selector: '.figure .value' })).toHaveClass('warn')
     expect(screen.getByText('All figures').closest('details')).not.toHaveAttribute('open')
+  })
+
+  it('reads beta, alpha and Sharpe together in a sentence under the figures', async () => {
+    show()
+    await run()
+
+    expect(await screen.findByText(/^Moves 0\.65× with XAUUSD \(R² 0\.99\)\. Alpha \+73\.64% a year is strong \(t 5\.76\)/)).toBeInTheDocument()
+  })
+
+  it('draws the equity marked each day, how far under water it was, and beta and Sharpe over time', async () => {
+    show()
+    await run()
+
+    expect(await screen.findByRole('img', { name: /^Equity marked at each day’s close from 1,000\.00 to 1,004\.95/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'The equity’s distance below its peak each day: -5.00% at the deepest.' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Beta to XAUUSD over the 90 days up to each point, from 0.60 to 0.70.' })).toBeInTheDocument()
+  })
+
+  it('shows a run saved before engine 2.7.0 with the four figures it had and no verdict', async () => {
+    const { finalEquity: _equity, analysis: _analysis, dailyEquity: _days, ...older } = deviceAnswer()
+    const before = { kind: 'device', id: 'old', at: 1, input: { strategy: 'sample', symbol: 'XAUUSD', interval: '1h', params: {} }, balance: 1000, from: null, to: null,
+      result: { ...older, tradeReturns: [0.02], overlappingTrades: 0, curve: [] } }
+    await db.set(`runs:backtest-${n + 1}:old`, before)
+    show()
+    const user = userEvent.setup()
+
+    await user.click(within((await screen.findByRole('table', { name: 'Saved backtests' })) as HTMLElement).getByRole('button', { name: 'Show' }))
+
+    const tiles = (await screen.findByText('Win rate', { selector: '.figure > .label' })).closest('.figures')!
+    expect([...tiles.querySelectorAll('.figure > .label')].map((label) => label.textContent)).toEqual(['Profit / loss', 'Final balance', 'Win rate', 'Max drawdown'])
+    expect(screen.queryByText(/likely above 0/)).not.toBeInTheDocument()
   })
 
   it('sets the run against its market: a dot a day, the fitted line, beta and alpha', async () => {

@@ -4,6 +4,8 @@ import type { StrategyDefinition } from '../../api/parse/strategies.ts'
 import type { CommandResult } from '../../api/types.ts'
 import type { DeviceResult } from '../../backtest/runs.ts'
 import type { MenuSetup } from '../menu/menu.ts'
+import { deviceAnswer } from '../../backtest/fixtures.ts'
+import { keep } from '../../backtest/runs.ts'
 import { newestBySetup, parsePublished, publishArgs, ranSetup, renameArgs, testedWords, type PublishedBacktest } from './published.ts'
 
 /** Published backtests (`published list|add|update`, bot 2.4.0): what everyone reads of how a menu setup was tested. */
@@ -11,7 +13,7 @@ import { newestBySetup, parsePublished, publishArgs, ranSetup, renameArgs, teste
 const row = (patch: Partial<PublishedBacktest> = {}): PublishedBacktest => ({
   id: 1, setupId: 1, setupName: 'Gold trend, steady', title: 'Gold 2024–2026', note: null, strategy: '', market: 'XAUUSD 1h', strategySetup: '', sizing: 'percent:25',
   from: '2024-01-01T00:00:00Z', to: '2026-11-01T00:00:00Z', candles: null, initialBalance: 1000, finalBalance: 1412, returnPercent: 41.2, trades: 86, wins: 51,
-  losses: 35, winRate: 59.3, maxDrawdownPercent: 9.4, backtestId: null, publishedBy: 'alice', publishedAt: '2026-11-16T10:00:00Z', updatedAt: '2026-11-16T10:00:00Z', ...patch,
+  losses: 35, winRate: 59.3, maxDrawdownPercent: 9.4, backtestId: null, publishedBy: 'alice', publishedAt: '2026-11-16T10:00:00Z', updatedAt: '2026-11-16T10:00:00Z', measures: null, ...patch,
 })
 
 const definition = {
@@ -68,6 +70,23 @@ describe('the commands', () => {
       'published', 'add', '--setup', '3', '--title', 'Gold 2024–2026', '--note', 'Before fees.', '--from', '2024-01-01T00:00:00', '--to', '2026-11-01T00:00:00',
       '--candles', '12000', '--initial', '1000', '--final', '1412.5', '--trades', '86', '--wins', '51', '--losses', '35', '--drawdown', '9.4123', '--json',
     ])
+  })
+
+  it('sends a run’s Sharpe, beta, alpha and marked drawdown too, from engine 2.7.0 on', () => {
+    const result = keep(deviceAnswer())
+
+    const args = publishArgs(3, result, { title: 'Gold', note: '' })
+
+    expect(args.slice(args.indexOf('--sharpe'), -1)).toEqual([
+      '--sharpe', '5.78', '--psr', '0.836', '--beta', '0.645614', '--alpha', '73.6404', '--alpha-t', '5.75961', '--equity-drawdown', '-5', '--risk-free', '0',
+    ])
+  })
+
+  it('reads the measures the bot published with a backtest, and none from an older bot', () => {
+    const measures = { sharpe: 1.21, psr: 0.93, beta: 0.32, annualAlpha: -0.007, alphaT: -0.07, equityDrawdownPercentage: -11.2, riskFree: 0, any: true }
+    const parsed = parsePublished({ json: [{ ...row(), measures }, row()] } as unknown as CommandResult)
+
+    expect(parsed.ok && parsed.value.map((p) => p.measures?.sharpe ?? null)).toEqual([1.21, null])
   })
 
   it('changes the words, removing an emptied note', () => {

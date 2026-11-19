@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { figuresOf } from '../../backtest/figures.ts'
-import { METHOD_NAMES, type KeptScenarios, type SavedRun } from '../../backtest/runs.ts'
+import { isDeviceRun, METHOD_NAMES, type KeptScenarios, type SavedRun } from '../../backtest/runs.ts'
+import { verdictOf } from '../../backtest/verdict.ts'
 import { fmtCount, fmtMoney, fmtPercent, fmtSignedPercent } from '../../format.ts'
 import { useSettings } from '../../state/settings.ts'
 import { DataTable } from '../DataTable.tsx'
@@ -27,9 +28,10 @@ export function Remembered({ name, summary, children }: { name: string; summary:
   )
 }
 
-/** Four figures always on screen; every other number grouped in one table that starts closed. */
+/** The headline figures always on screen, read together in a sentence; every other number grouped in one table that starts closed. */
 export function ReportFigures({ run }: { run: SavedRun }) {
   const { headline, groups } = figuresOf(run)
+  const verdict = isDeviceRun(run) ? verdictOf(run.result) : null
   return (
     <div className="stack">
       <div className="figures">
@@ -37,6 +39,7 @@ export function ReportFigures({ run }: { run: SavedRun }) {
           <Figure key={figure.label} label={figure.label} value={figure.value} sub={figure.sub} tone={figure.tone} />
         ))}
       </div>
+      {verdict ? <p className="p verdict">{verdict}</p> : null}
       <Remembered name="backtest-figures" summary="All figures">
         <div className="stack">
           {groups.map((group) => (
@@ -111,7 +114,13 @@ export function MonteCarloSection({ mc }: { mc: KeptScenarios }) {
               { key: 'p', header: 'Percentile', render: (row) => `${row.percentile}%` },
               { key: 'final', header: 'Final balance', align: 'right', render: (row) => fmtMoney(row.finalBalance) },
               { key: 'return', header: 'Return', align: 'right', render: (row) => fmtSignedPercent(row.returnPercent) },
-              { key: 'dd', header: 'Max drawdown', align: 'right', render: (row) => fmtPercent(row.maxDrawdownPercent) },
+              { key: 'dd', header: 'Drawdown, closed', align: 'right', render: (row) => fmtPercent(row.maxDrawdownPercent) },
+              ...(summary.percentiles.some((row) => row.equityDrawdownPercent != null && row.equityDrawdownPercent !== 0)
+                ? [{ key: 'marked', header: 'Drawdown, marked', align: 'right' as const, render: (row: (typeof summary.percentiles)[number]) => fmtPercent(row.equityDrawdownPercent ?? 0) }]
+                : []),
+              ...(summary.percentiles.some((row) => row.sharpe != null)
+                ? [{ key: 'sharpe', header: 'Sharpe', align: 'right' as const, render: (row: (typeof summary.percentiles)[number]) => row.sharpe?.toFixed(2) ?? '–' }]
+                : []),
             ]}
           />
           <p className="foot">

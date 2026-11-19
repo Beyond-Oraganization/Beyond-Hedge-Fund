@@ -85,6 +85,8 @@ export default function PublishedPage() {
     { key: 'return', header: 'Return', align: 'right', render: (p) => fmtSignedPercent(p.returnPercent) },
     { key: 'trades', header: 'Trades', align: 'right', render: (p) => fmtCount(p.trades) },
     { key: 'drawdown', header: 'Deepest fall', align: 'right', render: (p) => fmtPercent(p.maxDrawdownPercent, 1) },
+    { key: 'sharpe', header: 'Sharpe', align: 'right', render: (p) => p.measures?.sharpe?.toFixed(2) ?? '–' },
+    { key: 'beta', header: 'Beta', align: 'right', render: (p) => p.measures?.beta?.toFixed(2) ?? '–' },
     { key: 'by', header: 'By', render: (p) => `${p.publishedBy}${p.backtestId != null ? ` · backtest #${p.backtestId}` : ''}` },
   ]
 
