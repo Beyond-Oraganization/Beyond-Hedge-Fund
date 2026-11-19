@@ -65,6 +65,10 @@ export type ScenarioResult = {
   trades: number
   winRate: number
   points: number[]
+  /** The deepest fall of the equity marked at every candle (zero or negative); 0 from engines before 2.7.0. */
+  equityDrawdownPercent?: number
+  /** The Sharpe ratio a year; null without one, absent from engines before 2.7.0. */
+  sharpe?: number | null
 }
 
 /** The closes of one scenario's path at the real answer's `priceTimes`. */
@@ -89,7 +93,16 @@ export type DeviceScenarios = {
 }
 
 /** At `percentile` %, each column sorted on its own (a row is not one scenario); drawdowns are zero or negative. */
-export type ScenarioPercentile = { percentile: number; finalBalance: number; returnPercent: number; maxDrawdownPercent: number }
+export type ScenarioPercentile = {
+  percentile: number
+  finalBalance: number
+  returnPercent: number
+  maxDrawdownPercent: number
+  /** Engine 2.7.0 on. */
+  equityDrawdownPercent?: number
+  /** Engine 2.7.0 on; null when no scenario has a Sharpe ratio. */
+  sharpe?: number | null
+}
 
 export type ScenarioSummary = {
   scenarios: number
@@ -116,6 +129,12 @@ export type DayReturn = { day: string; asset: number; strategy: number; inMarket
  * How the strategy moved with its market: the least-squares line through one dot a day (the bot's
  * Core/Portfolio/MarketBeta.cs). Returns and rates are fractions; `alpha` is per day, `annualAlpha` × `daysPerYear`.
  */
+/** How far alpha's t says it is more than luck (the bot's ADR 0008): |t| below 2, from 2, from 3. */
+export type AlphaEvidence = 'Luck' | 'Suggestive' | 'Strong'
+
+/** How far a probability that a Sharpe ratio is real convinces: below 0.80, from 0.80, from 0.95. */
+export type SharpeEvidence = 'NotEvidence' | 'Promising' | 'Convincing'
+
 export type MarketBeta = {
   days: number
   beta: number
@@ -130,7 +149,104 @@ export type MarketBeta = {
   daysPerYear: number
   inMarketPercent: number
   riskFree: number
+  /** The 95 % intervals (engine 2.7.0 on): beta, and alpha a year. */
+  betaLow?: number
+  betaHigh?: number
+  annualAlphaLow?: number
+  annualAlphaHigh?: number
+  /** Null when there is no t. */
+  alphaEvidence?: AlphaEvidence | null
 }
+
+/**
+ * The Sharpe ratio and the other figures of the daily returns (the bot's Core/Portfolio/ReturnStats.cs). Ratios are a
+ * year, returns fractions (0.012 is +1.2 %).
+ */
+export type ReturnStats = {
+  days: number
+  daysPerYear: number
+  riskFree: number
+  meanExcess: number
+  sharpePerDay: number
+  sharpe: number
+  sharpeError: number
+  sharpeLow: number
+  sharpeHigh: number
+  /** The probability that the true Sharpe ratio is above 0. */
+  psr: number
+  psrEvidence: SharpeEvidence
+  /** Null without a day below 0. */
+  sortino: number | null
+  volatility: number
+  skew: number
+  kurtosis: number
+  lagOneAutocorrelation: number
+  /** One day's return follows the day before's, so the yearly Sharpe ratio is approximate. */
+  sharpeApproximate: boolean
+  /** A bad day in 20 loses about this much (negative). */
+  valueAtRisk: number
+  expectedShortfall: number
+}
+
+export type RollingPoint = { day: string; beta: number | null; sharpe: number | null }
+
+export type BuyAndHold = { returnPercent: number; maxDrawdownPercent: number; sharpe: number | null }
+
+/** How far to trust beta and alpha (Core/Portfolio/MarketChecks.cs). */
+export type MarketChecks = {
+  /** Against the market the day before: a beta that survives points to look-ahead or stale prices. */
+  lagged: MarketBeta | null
+  firstHalf: MarketBeta | null
+  secondHalf: MarketBeta | null
+  informationRatio: number | null
+  /** Beta and Sharpe over 90 days, every 5th day. */
+  rolling: RollingPoint[]
+  buyAndHold: BuyAndHold | null
+}
+
+/** What the closed trades say (Core/Backtesting/TradeStats.cs). */
+export type TradeStats = {
+  trades: number
+  tradesPerYear: number
+  averageHoldingDays: number
+  profitFactor: number | null
+  /** The mean trade return per unit of position value. */
+  expectancyReturn: number
+  winConcentration: number | null
+  lossConcentration: number | null
+  longProfitLoss: number
+  shortProfitLoss: number
+  /** The win rate a Sharpe ratio of 1 needs. */
+  impliedPrecision: number | null
+  chanceBelowPrecision: number | null
+}
+
+/** One fall of the equity below a peak; `recovered` is null when it had not got back. Percents are zero or negative. */
+export type DrawdownEpisode = { peak: Iso; trough: Iso; recovered: Iso | null; depth: number; depthPercent: number; underwaterDays: number }
+
+/** The equity's falls below its peak, marked at every candle, open losses included. */
+export type DrawdownSummary = { maxDrawdown: number; maxDrawdownPercent: number; deepest: DrawdownEpisode[]; longest: DrawdownEpisode | null }
+
+export type ExposureSummary = { mostOpenAtOnce: number; averageLeverage: number; maxLeverage: number; averageOpenWhenInMarket: number; inMarketPercent: number }
+
+/** Everything a backtest is measured by after its replay (Core/Backtesting/BacktestAnalysis.cs, engine 2.7.0 on). */
+export type BacktestAnalysis = {
+  returns: ReturnStats | null
+  returnsMissing: string | null
+  /** Compound growth a year, a fraction; null for under a month. */
+  cagr: number | null
+  calmar: number | null
+  checks: MarketChecks
+  trades: TradeStats
+  drawdowns: DrawdownSummary
+  exposure: ExposureSummary
+  /** Each day's distance below the peak so far, in percent (zero or negative). */
+  underwater: { day: string; percent: number }[]
+  daysPerYear: number
+}
+
+/** The equity at a day's end, its open positions valued at the day's last close. */
+export type DailyEquityPoint = { day: string; equity: number; close: number; inMarket: boolean }
 
 export type DeviceBacktest = {
   ok: true
@@ -177,6 +293,10 @@ export type DeviceBacktest = {
   marketBetaMissing: string | null
   /** One dot a day after the first, for the scatter. */
   dailyReturns: DayReturn[]
+  /** The final balance with the positions still open valued at the last close (engine 2.7.0 on). */
+  finalEquity: number
+  analysis: BacktestAnalysis
+  dailyEquity: DailyEquityPoint[]
 }
 
 export type EngineFailure = { ok: false; engine: string; error: { message: string } }

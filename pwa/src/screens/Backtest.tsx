@@ -9,8 +9,9 @@ import { clearRuns, loadDetails, loadRuns, saveRun } from '../backtest/saved.ts'
 import { FailurePanel } from '../components/Answer.tsx'
 import { MonteCarloSection, ReportFigures } from '../components/backtest/Report.tsx'
 import { MarketBetaChart } from '../components/backtest/MarketBetaChart.tsx'
+import { RollingCharts, UnderwaterChart } from '../components/backtest/MeasureCharts.tsx'
 import { TradeReturnsChart } from '../components/backtest/TradeReturnsChart.tsx'
-import { Chart } from '../components/Chart.tsx'
+import { Chart, type ChartLine } from '../components/Chart.tsx'
 import { DataTable } from '../components/DataTable.tsx'
 import { describedBy, Field, Segmented } from '../components/Field.tsx'
 import { ScreenHead } from '../components/ScreenHead.tsx'
@@ -196,6 +197,15 @@ export default function Backtest() {
   const compared = saved.filter((run) => compare.includes(run.id))
   const device = current && isDeviceRun(current) ? current : null
   const curve = device ? curveByTime(device.result.curve) : current && !isDeviceRun(current) ? (current.curve?.map((p) => ({ time: p.time, value: p.balance })) ?? null) : null
+  const equityDays = device?.result.equityDays
+  // The marked equity, solid, and the balance after each close, dashed: both in money, on one axis.
+  const balanceLines = useMemo<ChartLine[]>(
+    () =>
+      equityDays?.length
+        ? [{ name: 'Equity', points: equityDays.map(([time, value]) => ({ time, value })), width: 3 }, { name: 'Balance', points: curve ?? [], dashed: true }]
+        : [{ name: 'Balance', points: curve ?? [], width: 3 }],
+    [equityDays, curve],
+  )
 
   return (
     <>
@@ -297,9 +307,18 @@ export default function Backtest() {
             <ReportFigures run={current} />
             <div className="stack-sm">
               <h3 className="h3">Balance over time</h3>
-              {curve?.length ? (
+              {equityDays?.length ? (
+                <>
+                  <Chart
+                    lines={balanceLines}
+                    label={`Equity marked at each day’s close from ${fmtMoney(device?.result.initialBalance)} to ${fmtMoney(device?.result.finalEquity)}, and the balance after each closed trade, ending at ${fmtMoney(device?.result.finalBalance)}`}
+                    height={300}
+                  />
+                  <p className="hint">Solid: the equity at each day’s close, open positions valued there. Dashed: the balance after each closed trade.</p>
+                </>
+              ) : curve?.length ? (
                 <Chart
-                  lines={[{ name: 'Balance', points: curve, width: 3 }]}
+                  lines={balanceLines}
                   label={`Balance from ${fmtMoney(device?.result.initialBalance ?? curve[0]?.value)} to ${fmtMoney(curve.at(-1)?.value)}, after each closed trade`}
                   height={300}
                 />
@@ -344,8 +363,28 @@ export default function Backtest() {
                 </p>
               )}
             </div>
+            {device?.result.underwater?.length ? (
+              <div className="stack-sm">
+                <h3 className="h3">Under water</h3>
+                <p className="hint">How far below its highest point the equity stood at each day’s close, open losses included. The longer and deeper the dips, the harder the strategy is to hold.</p>
+                <UnderwaterChart days={device.result.underwater} />
+              </div>
+            ) : null}
+            {device?.result.analysis?.checks.rolling.length ? (
+              <div className="stack-sm">
+                <h3 className="h3">Beta and Sharpe over time</h3>
+                <p className="hint">Each point measures the 90 days up to it. Lines that wander say one beta, or one Sharpe ratio, does not describe the whole period.</p>
+                <RollingCharts points={device.result.analysis.checks.rolling} market={device.result.market.symbol} />
+              </div>
+            ) : null}
             <Callout label="What a backtest leaves out">
-              <p>No fees, spread or margin. Positions still open at the end are not in the balance. The bot trades with the same decision code, so a backtest and the live strategy cannot drift apart.</p>
+              <p>
+                No fees, spread or margin.{' '}
+                {device?.result.analysis
+                  ? 'Positions still open at the end are in the final equity and the marked drawdown, not in the balance.'
+                  : 'Positions still open at the end are not in the balance.'}{' '}
+                The bot trades with the same decision code, so a backtest and the live strategy cannot drift apart.
+              </p>
               <p>A strategy that is long in rises and short in falls shows a V of dots, a beta near 0 and a large alpha: that is timing the market, which one straight line cannot tell apart.</p>
             </Callout>
           </div>
@@ -510,9 +549,26 @@ const COMPARED_ROWS: CompareRow[] = [
     'Profit / loss',
     (run) => (isDeviceRun(run) ? `${fmtSignedMoney(run.result.profitLoss)} ${fmtSignedPercent(run.result.returnPercent)}` : `${fmtSignedMoney(run.report.profitLoss)} ${fmtSignedPercent(run.report.returnPercent)}`),
   ],
+  ['Sharpe a year', (run) => (isDeviceRun(run) && run.result.analysis?.returns ? `${run.result.analysis.returns.sharpe.toFixed(2)} (${fmtPercent(run.result.analysis.returns.psr * 100, 0)} likely above 0)` : '–')],
+  [
+    'Beta',
+    (run) => {
+      const beta = isDeviceRun(run) ? run.result.marketBeta : null
+      return beta ? `${beta.beta.toFixed(2)}${beta.betaLow == null || beta.betaHigh == null ? '' : ` [${beta.betaLow.toFixed(2)}, ${beta.betaHigh.toFixed(2)}]`}` : '–'
+    },
+  ],
+  [
+    'Alpha a year',
+    (run) => {
+      const beta = isDeviceRun(run) ? run.result.marketBeta : null
+      return beta ? `${fmtSignedPercent(beta.annualAlpha * 100)}${beta.alphaT == null ? '' : ` (t ${beta.alphaT.toFixed(2)})`}` : '–'
+    },
+  ],
+  ['Drawdown, marked', (run) => (isDeviceRun(run) && run.result.analysis ? fmtPercent(run.result.analysis.drawdowns.maxDrawdownPercent) : '–')],
+  ['Final equity', (run) => (isDeviceRun(run) && run.result.finalEquity != null ? fmtMoney(run.result.finalEquity) : '–')],
   ['Trades', (run) => (isDeviceRun(run) ? `${run.result.closedTrades} (${fmtPercent(run.result.winRate, 1)} won)` : `${run.report.trades} (${fmtPercent(run.report.winRate, 1)} won)`)],
   [
-    'Max drawdown',
+    'Drawdown, closed',
     (run) => (isDeviceRun(run) ? `${fmtSignedMoney(run.result.maxDrawdown)} (${fmtPercent(run.result.maxDrawdownPercent)})` : `${fmtSignedMoney(run.report.maxDrawdown)} (${fmtPercent(run.report.maxDrawdownPercent)})`),
   ],
   [

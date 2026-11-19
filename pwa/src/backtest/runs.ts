@@ -1,6 +1,6 @@
 import type { StrategyInput } from '../api/commands.ts'
 import type { BacktestReport } from '../api/parse/strategies.ts'
-import type { DeviceBacktest, DeviceScenarios, MarketBeta, PathMethod, ScenarioSummary } from '../engine/types.ts'
+import type { BacktestAnalysis, DeviceBacktest, DeviceScenarios, MarketBeta, PathMethod, ScenarioSummary } from '../engine/types.ts'
 
 /** A Monte Carlo from before 2.2.0, which resampled the backtest's own trades: runs saved then still hold one. */
 export type TradeResampling = { paths: number; endedAboveStartPercent: number }
@@ -12,7 +12,7 @@ export type TradeResampling = { paths: number; endedAboveStartPercent: number }
  */
 export type DeviceResult = Omit<
   DeviceBacktest,
-  'trades' | 'equityCurve' | 'realScenario' | 'pointTimes' | 'priceTimes' | 'prices' | 'marketBeta' | 'marketBetaMissing' | 'dailyReturns'
+  'trades' | 'equityCurve' | 'realScenario' | 'pointTimes' | 'priceTimes' | 'prices' | 'marketBeta' | 'marketBetaMissing' | 'dailyReturns' | 'finalEquity' | 'analysis' | 'dailyEquity'
 > & {
   tradeReturns: number[]
   overlappingTrades: number
@@ -24,6 +24,13 @@ export type DeviceResult = Omit<
   dayDots?: [number, number][]
   /** Only in runs saved before 2.2.0. */
   monteCarlo?: TradeResampling | null
+  /** Only in runs saved from 2.7.0 on: the final equity with open positions, and the analysis without its daily series. */
+  finalEquity?: number
+  analysis?: Omit<BacktestAnalysis, 'underwater'>
+  /** Each day's [time in ms, equity marked at its close]; from 2.7.0 on. */
+  equityDays?: [number, number][]
+  /** Each day's [time in ms, percent below the peak]; from 2.7.0 on. */
+  underwater?: [number, number][]
 }
 
 /** What a Monte Carlo keeps beyond its summary: every scenario's balance path, and the price paths drawn. */
@@ -82,15 +89,22 @@ export const METHOD_NAMES: Record<PathMethod, string> = { Bootstrap: 'bootstrap'
 /** The engine's answer as the page keeps it. */
 export function keep(answer: DeviceBacktest): DeviceResult {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { trades, equityCurve, realScenario, pointTimes, priceTimes, prices, dailyReturns, ...rest } = answer
+  const { trades, equityCurve, realScenario, pointTimes, priceTimes, prices, dailyReturns, dailyEquity, analysis, ...rest } = answer
+  const { underwater, ...measured } = analysis
   return {
     ...rest,
+    analysis: measured,
+    equityDays: dailyEquity.map((day) => [dayTime(day.day), day.equity]),
+    underwater: underwater.map((point) => [dayTime(point.day), point.percent]),
     tradeReturns: trades.map((trade) => trade.return),
     overlappingTrades: trades.filter((trade) => trade.overlapped).length,
     curve: equityCurve.map((point) => [Date.parse(point.time), point.balance]),
     dayDots: dailyReturns.map((day) => [day.asset, day.strategy]),
   }
 }
+
+/** A day the engine writes as "2025-01-06", in milliseconds (its UTC midnight). */
+export const dayTime = (day: string) => Date.parse(`${day}T00:00:00Z`)
 
 /** The Monte Carlo as the page keeps it: the real backtest's answer, the scenarios' and their summary. */
 export function keepScenarios(real: DeviceBacktest, scenarios: DeviceScenarios, summary: ScenarioSummary): KeptScenarios {

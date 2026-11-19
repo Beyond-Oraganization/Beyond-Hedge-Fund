@@ -1,4 +1,4 @@
-import type { DeviceBacktest, DeviceScenarios, DeviceSummary, DeviceTrade, ScenarioResult } from '../engine/types.ts'
+import type { BacktestAnalysis, DeviceBacktest, DeviceScenarios, DeviceSummary, DeviceTrade, ReturnStats, ScenarioResult } from '../engine/types.ts'
 
 /** Test data: engine answers as the bot's BacktestEngine.cs writes them. */
 
@@ -16,6 +16,40 @@ const rising = (from: number, to: number) => Array.from({ length: 51 }, (_, poin
 /** A scenario that ends at `final`, its balance rising (or falling) evenly to it. */
 export const scenarioResult = (scenario: number, final: number): ScenarioResult => ({
   scenario, finalBalance: final, returnPercent: (final - 1000) / 10, maxDrawdownPercent: final < 1000 ? (final - 1000) / 10 : -0.5, trades: 2, winRate: 50, points: rising(1000, final),
+})
+
+/** The Sharpe ratio and its companions of the plan's eight-day worked example (docs/backtest-engine-plan.md, §B4). */
+export const returnStats = (overrides: Partial<ReturnStats> = {}): ReturnStats => ({
+  days: 8, daysPerYear: 261, riskFree: 0, meanExcess: 0.00175, sharpePerDay: 0.35775, sharpe: 5.78, sharpeError: 5.53, sharpeLow: -5.06, sharpeHigh: 16.62,
+  psr: 0.836, psrEvidence: 'Promising', sortino: 13.52, volatility: 0.079, skew: 0.28, kurtosis: 2.17, lagOneAutocorrelation: -0.74, sharpeApproximate: true,
+  valueAtRisk: -0.0043, expectedShortfall: -0.005,
+  ...overrides,
+})
+
+/** An analysis as BacktestAnalysis.cs writes it: the eight days, a held loser, two trades. */
+export const analysis = (overrides: Partial<BacktestAnalysis> = {}): BacktestAnalysis => ({
+  returns: returnStats(),
+  returnsMissing: null,
+  cagr: 0.031,
+  calmar: 0.62,
+  checks: {
+    lagged: null, firstHalf: null, secondHalf: null, informationRatio: 52.55,
+    rolling: [{ day: '2025-04-05', beta: 0.6, sharpe: 1.1 }, { day: '2025-04-10', beta: 0.7, sharpe: 0.9 }],
+    buyAndHold: { returnPercent: 8.9, maxDrawdownPercent: -10, sharpe: 0.4 },
+  },
+  trades: {
+    trades: 2, tradesPerYear: 150, averageHoldingDays: 0.04, profitFactor: 1.98, expectancyReturn: 0.005, winConcentration: null, lossConcentration: null,
+    longProfitLoss: 4.95, shortProfitLoss: 0, impliedPrecision: 0.639, chanceBelowPrecision: 0.45,
+  },
+  drawdowns: {
+    maxDrawdown: -50, maxDrawdownPercent: -5,
+    deepest: [{ peak: '2025-01-06T00:00:00Z', trough: '2025-01-07T00:00:00Z', recovered: '2025-01-09T00:00:00Z', depth: -50, depthPercent: -5, underwaterDays: 3 }],
+    longest: { peak: '2025-01-06T00:00:00Z', trough: '2025-01-07T00:00:00Z', recovered: '2025-01-09T00:00:00Z', depth: -50, depthPercent: -5, underwaterDays: 3 },
+  },
+  exposure: { mostOpenAtOnce: 2, averageLeverage: 0.4, maxLeverage: 1, averageOpenWhenInMarket: 1.2, inMarketPercent: 60 },
+  underwater: [{ day: '2025-01-06', percent: 0 }, { day: '2025-01-07', percent: -5 }, { day: '2025-01-08', percent: 0 }],
+  daysPerYear: 261,
+  ...overrides,
 })
 
 /** An engine answer as BacktestEngine.cs writes it: two trades, the second closed on the first's candle. */
@@ -40,11 +74,15 @@ export function deviceAnswer(overrides: Partial<DeviceBacktest> = {}): DeviceBac
     marketBeta: {
       days: 5, beta: 0.645614, alpha: 0.00201754, annualAlpha: 0.736404, rSquared: 0.993252, correlation: 0.996621,
       betaError: 0.0307226, alphaError: 0.000350292, alphaT: 5.75961, daysPerYear: 365, inMarketPercent: 60, riskFree: 0,
+      betaLow: 0.585398, betaHigh: 0.70583, annualAlphaLow: 0.485813, annualAlphaHigh: 0.986995, alphaEvidence: 'Strong',
     },
     marketBetaMissing: null,
     dailyReturns: [[0.01, 0.008], [-0.005, -0.002], [0.02, 0.015], [-0.01, -0.004], [0.005, 0.006]].map(([asset, strategy], day) => ({
       day: `2025-01-0${day + 7}`, asset: asset!, strategy: strategy!, inMarket: day % 2 === 0,
     })),
+    finalEquity: 1004.95,
+    analysis: analysis(),
+    dailyEquity: [1000, 950, 1004.95].map((equity, day) => ({ day: `2025-01-0${day + 6}`, equity, close: 2000 + day, inMarket: day === 1 })),
     ...overrides,
   }
 }

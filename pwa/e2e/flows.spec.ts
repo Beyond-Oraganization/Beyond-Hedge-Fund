@@ -107,8 +107,13 @@ test('backtests on this device with the bot’s engine: the balance, the trade r
   await page.getByRole('button', { name: 'Run the backtest' }).click()
   // The first run copies the market's candles and starts the engine (WebAssembly, in a worker).
   await expect(page.getByRole('heading', { name: 'Monte Carlo' })).toBeVisible({ timeout: 60_000 })
-  await expect(page.getByText('Profit / loss').first()).toBeVisible()
-  await expect(page.getByRole('img', { name: /^Balance from/ })).toBeVisible()
+  await expect(page.getByText('Profit / loss').first()).toBeAttached()
+  // Engine 2.7.0: Sharpe, beta and alpha up front, read together in a sentence.
+  await expect(page.locator('.figure > .label').filter({ hasText: 'Sharpe a year' })).toBeVisible()
+  await expect(page.locator('.figure > .label').filter({ hasText: /^Beta to XAUUSD$/ })).toBeVisible()
+  await expect(page.locator('.figure > .label').filter({ hasText: 'Drawdown, marked' })).toBeVisible()
+  await expect(page.locator('p.verdict')).toContainText(/likely above 0|No Sharpe ratio/)
+  await expect(page.getByRole('img', { name: /^Equity marked at each day’s close from/ })).toBeVisible()
   await expect(page.getByRole('img', { name: /^Returns of \d+ trades/ })).toBeVisible()
   // 200 alternative price histories by bootstrap, backtested in several workers.
   await expect(page.getByRole('img', { name: /^The balance over time in 200 alternative price histories/ })).toBeVisible()

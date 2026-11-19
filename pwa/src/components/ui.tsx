@@ -129,7 +129,7 @@ export function EmptyState({ title, children, actions }: { title: string; childr
 }
 
 /** A key figure: label, big value, a line below. */
-export function Figure({ label, value, sub, big, tone }: { label: string; value: ReactNode; sub?: ReactNode; big?: boolean; tone?: 'gain' | 'loss' | null }) {
+export function Figure({ label, value, sub, big, tone }: { label: string; value: ReactNode; sub?: ReactNode; big?: boolean; tone?: 'gain' | 'loss' | 'warn' | 'mute' | null }) {
   return (
     <div className="figure">
       <span className="label">{label}</span>
