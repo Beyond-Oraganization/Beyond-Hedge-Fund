@@ -1,5 +1,12 @@
 import { useId, useState } from 'react'
-import { CURRENCIES, isPlain, quoteOf, type ConditionErrors, type ConditionsForm, type MarketCosts } from '../../backtest/conditions.ts'
+import {
+  CURRENCIES,
+  isPlain,
+  quoteOf,
+  type ConditionErrors,
+  type ConditionsForm,
+  type MarketCosts,
+} from '../../backtest/conditions.ts'
 import type { FillAt } from '../../engine/types.ts'
 import { describedBy, Field, Segmented } from '../Field.tsx'
 
@@ -9,10 +16,22 @@ const FILLS: { value: FillAt; label: string }[] = [
 ]
 
 const COSTS: { key: keyof MarketCosts; label: string; hint: string }[] = [
-  { key: 'spread', label: 'Bid–ask spread', hint: 'Ask minus bid, in the price’s units: 0.30 for gold. Each fill pays half.' },
+  {
+    key: 'spread',
+    label: 'Bid–ask spread',
+    hint: 'Ask minus bid, in the price’s units: 0.30 for gold. Each fill pays half.',
+  },
   { key: 'slippage', label: 'Slippage', hint: 'How much worse each fill is on top, in the price’s units.' },
-  { key: 'commission', label: 'Commission, % a side', hint: 'Of what the position is worth, when it opens and when it closes.' },
-  { key: 'swapLong', label: 'Swap long, % a year', hint: 'As the broker lists it: −4 charges 4 % a year. Charged every night held.' },
+  {
+    key: 'commission',
+    label: 'Commission, % a side',
+    hint: 'Of what the position is worth, when it opens and when it closes.',
+  },
+  {
+    key: 'swapLong',
+    label: 'Swap long, % a year',
+    hint: 'As the broker lists it: −4 charges 4 % a year. Charged every night held.',
+  },
   { key: 'swapShort', label: 'Swap short, % a year', hint: 'The same for a short.' },
 ]
 
@@ -27,6 +46,7 @@ export function ConditionsFields({
   errors,
   symbol,
   route,
+  withCurrency = true,
 }: {
   form: ConditionsForm
   onChange: (form: ConditionsForm) => void
@@ -34,6 +54,8 @@ export function ConditionsFields({
   symbol: string
   /** How the chosen currency is reached ("÷ EURUSD 4h"), or why it cannot be; null while unknown or for the market's own. */
   route: { text: string; ok: boolean } | null
+  /** False for a leg of a combined backtest, whose currency is the combined one. */
+  withCurrency?: boolean
 }) {
   const base = useId()
   const currencyId = `${base}-currency`
@@ -59,8 +81,8 @@ export function ConditionsFields({
       <summary>Costs and conditions</summary>
       <div className="stack">
         <p className="hint">
-          Left empty, a backtest pays nothing and fills at the signal’s close, as it always did. The costs are remembered on this device for {symbol || 'each market'}; take
-          them from the broker’s tables.
+          Left empty, a backtest pays nothing and fills at the signal’s close, as it always did. The costs are
+          remembered on this device for {symbol || 'each market'}; take them from the broker’s tables.
         </p>
         <div className="form-grid">
           {COSTS.map(({ key, label, hint }) => {
@@ -93,29 +115,38 @@ export function ConditionsFields({
         />
         <div className="field">
           <label className="check" htmlFor={budgetId}>
-            <input id={budgetId} type="checkbox" checked={form.budgeted} onChange={(event) => set({ budgeted: event.target.checked })} aria-describedby={`${budgetId}-hint`} />
+            <input
+              id={budgetId}
+              type="checkbox"
+              checked={form.budgeted}
+              onChange={(event) => set({ budgeted: event.target.checked })}
+              aria-describedby={`${budgetId}-hint`}
+            />
             Trade like a live budget of the starting balance
           </label>
           <p className="hint" id={`${budgetId}-hint`}>
-            No more positions open at once than the budget has room for, as a session with a budget trades: percent:30 holds 3. The signals it skips are counted.
+            No more positions open at once than the budget has room for, as a session with a budget trades: percent:30
+            holds 3. The signals it skips are counted.
           </p>
         </div>
-        <Field id={currencyId} label="Measured in" hint={routeHint} error={routeError}>
-          <select
-            id={currencyId}
-            value={form.currency}
-            onChange={(event) => set({ currency: event.target.value })}
-            aria-invalid={routeError ? true : undefined}
-            aria-describedby={describedBy(currencyId, routeHint, routeError)}
-          >
-            <option value="">The market’s own{quote ? ` (${quote})` : ''}</option>
-            {CURRENCIES.filter((currency) => currency !== quote).map((currency) => (
-              <option key={currency} value={currency}>
-                {currency}
-              </option>
-            ))}
-          </select>
-        </Field>
+        {withCurrency ? (
+          <Field id={currencyId} label="Measured in" hint={routeHint} error={routeError}>
+            <select
+              id={currencyId}
+              value={form.currency}
+              onChange={(event) => set({ currency: event.target.value })}
+              aria-invalid={routeError ? true : undefined}
+              aria-describedby={describedBy(currencyId, routeHint, routeError)}
+            >
+              <option value="">The market’s own{quote ? ` (${quote})` : ''}</option>
+              {CURRENCIES.filter((currency) => currency !== quote).map((currency) => (
+                <option key={currency} value={currency}>
+                  {currency}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : null}
       </div>
     </details>
   )

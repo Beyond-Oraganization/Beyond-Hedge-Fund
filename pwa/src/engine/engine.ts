@@ -1,6 +1,8 @@
 import type { WorkerCall, WorkerReply } from './worker.ts'
 import type {
   CandleColumns,
+  CombineAnswer,
+  CombineRequest,
   ConversionColumns,
   ConversionPlanAnswer,
   ConversionPlanRequest,
@@ -15,6 +17,9 @@ import type {
 
 /** No conversion: what a request without `conversion` sends. */
 export const noConversion: ConversionColumns = { time: [], close: [] }
+
+/** One backtest of {@link Engine.backtestAll}: a request, its candles, and its conversion's candles when it has one. */
+export type BacktestJob = { request: EngineRequest; candles: CandleColumns; conversion?: ConversionColumns }
 
 /** The strategies the engine runs: the pack the bot handed out (engine/pack.ts), identified by its SHA-256. */
 export type EngineStrategies = { sha256: string; bytes: Uint8Array }
@@ -41,6 +46,13 @@ export interface Engine {
     count: number,
     options?: { signal?: AbortSignal; onProgress?: (done: number, total: number) => void; conversion?: ConversionColumns },
   ): Promise<SimulateAnswer>
+  /**
+   * Backtests several requests at once, spread over the workers, and answers them in the jobs' order; `onProgress` hears
+   * how many are done after each. A combined backtest's legs run this way.
+   */
+  backtestAll(jobs: BacktestJob[], options?: { signal?: AbortSignal; onProgress?: (done: number, total: number) => void }): Promise<EngineAnswer[]>
+  /** Adds up the legs of a combined backtest (engine 2.9.0 on): no candles, just their daily equity. */
+  combine(request: CombineRequest, signal?: AbortSignal): Promise<CombineAnswer>
   /** Which of the device's markets turn the symbol's quote currency into another (engine 2.8.0 on), or why none does. */
   planConversion(request: ConversionPlanRequest, signal?: AbortSignal): Promise<ConversionPlanAnswer>
   /** Sums up the scenarios and ranks the real history among them. */
@@ -98,6 +110,25 @@ const spawnWorker = (name: string): EngineWorker => new Worker(new URL('./worker
 
 /** Scenarios per call: small enough to report progress often, big enough that sending the candles costs little. */
 export const shareSize = (count: number, workers: number) => Math.max(1, Math.min(25, Math.ceil(count / (workers * 5))))
+
+/**
+ * Shares items 0 to `count` − 1 out to `workers` workers, `step` at a time, each worker taking the next share as soon as
+ * it is free (work stealing), so a slow share holds up no other worker. `run` answers false to stop handing out shares.
+ */
+export async function shareOut(count: number, step: number, workers: number, run: (worker: number, first: number, count: number) => Promise<boolean>): Promise<void> {
+  const shares: [first: number, count: number][] = []
+  for (let first = 0; first < count; first += step) shares.push([first, Math.min(step, count - first)])
+  let taken = 0
+  let stopped = false
+  await Promise.all(
+    Array.from({ length: Math.max(1, Math.min(workers, shares.length)) }, async (_, worker) => {
+      while (taken < shares.length && !stopped) {
+        const [first, share] = shares[taken++]!
+        if (!(await run(worker, first, share))) stopped = true
+      }
+    }),
+  )
+}
 
 /**
  * Workers started when first needed and kept for the next calls (starting .NET again would cost a second). The first
@@ -164,7 +195,7 @@ export function createEngine({ base = engineBase(), workers = poolSize(), spawn 
   }
 
   const call = async (index: number, message: Message, signal?: AbortSignal) => {
-    if (message.kind !== 'summarize' && message.kind !== 'version' && message.kind !== 'planConversion') await ensureLoaded(index, signal)
+    if (message.kind !== 'summarize' && message.kind !== 'version' && message.kind !== 'planConversion' && message.kind !== 'combine') await ensureLoaded(index, signal)
     return send(index, message, signal)
   }
 
@@ -182,28 +213,21 @@ export function createEngine({ base = engineBase(), workers = poolSize(), spawn 
 
     async simulate(request, candles, count, { signal, onProgress, conversion = noConversion } = {}) {
       const size = Math.max(1, Math.min(workers, count))
-      const step = shareSize(count, size)
-      const shares: [first: number, count: number][] = []
-      for (let first = 0; first < count; first += step) shares.push([first, Math.min(step, count - first)])
       const text = JSON.stringify(request)
       const answers: DeviceScenarios[] = []
       let failure: SimulateAnswer | null = null
-      let taken = 0
       let done = 0
-      await Promise.all(
-        Array.from({ length: size }, async (_, index) => {
-          while (taken < shares.length && !failure) {
-            const [first, share] = shares[taken++]!
-            const answer = JSON.parse(await call(index, { kind: 'simulate', request: text, candles, first, count: share, conversion }, signal)) as SimulateAnswer
-            if (!answer.ok) failure = answer
-            else {
-              answers.push(answer)
-              done += share
-              onProgress?.(done, count)
-            }
-          }
-        }),
-      )
+      await shareOut(count, shareSize(count, size), size, async (index, first, share) => {
+        const answer = JSON.parse(await call(index, { kind: 'simulate', request: text, candles, first, count: share, conversion }, signal)) as SimulateAnswer
+        if (!answer.ok) {
+          failure = answer
+          return false
+        }
+        answers.push(answer)
+        done += share
+        onProgress?.(done, count)
+        return true
+      })
       if (failure) return failure
       const [head] = answers
       if (!head) throw new Error('The engine ran no scenario.')
@@ -213,6 +237,24 @@ export function createEngine({ base = engineBase(), workers = poolSize(), spawn 
         prices: answers.flatMap((answer) => answer.prices).sort((a, b) => a.scenario - b.scenario),
         computedMs: Math.max(...answers.map((answer) => answer.computedMs)),
       }
+    },
+
+    async backtestAll(jobs, { signal, onProgress } = {}) {
+      const answers: EngineAnswer[] = new Array(jobs.length)
+      let done = 0
+      await shareOut(jobs.length, 1, workers, async (index, first) => {
+        const job = jobs[first]!
+        answers[first] = JSON.parse(
+          await call(index, { kind: 'backtest', request: JSON.stringify(job.request), candles: job.candles, conversion: job.conversion ?? noConversion }, signal),
+        ) as EngineAnswer
+        onProgress?.(++done, jobs.length)
+        return true
+      })
+      return answers
+    },
+
+    async combine(request, signal) {
+      return JSON.parse(await call(0, { kind: 'combine', request: JSON.stringify(request) }, signal)) as CombineAnswer
     },
 
     async planConversion(request, signal) {

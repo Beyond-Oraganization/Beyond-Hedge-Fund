@@ -1,4 +1,4 @@
-import type { BacktestAnalysis, DeviceBacktest, DeviceScenarios, DeviceSummary, DeviceTrade, ReturnStats, ScenarioResult } from '../engine/types.ts'
+import type { BacktestAnalysis, CombinedResult, DeviceBacktest, DeviceScenarios, DeviceSummary, DeviceTrade, ReturnStats, ScenarioResult } from '../engine/types.ts'
 
 /** Test data: engine answers as the bot's BacktestEngine.cs writes them. */
 
@@ -107,5 +107,40 @@ export function summaryAnswer(): DeviceSummary {
       percentiles: [5, 25, 50, 75, 95].map((percentile) => ({ percentile, finalBalance: 1000, returnPercent: 0, maxDrawdownPercent: -1 })),
       realBeatPercent: 66.66666666666667, meanPath: rising(1000, 1006.66),
     },
+  }
+}
+
+/** A combined answer as CombinedBacktest.cs writes it: gold and the zloty in EUR, gold carrying most of the risk. */
+export function combinedResult(overrides: Partial<CombinedResult> = {}): CombinedResult {
+  const leg = (label: string, symbol: string, finalEquity: number, riskShare: number, currencyBeta: CombinedResult['legs'][number]['currencyBeta'] = null) => ({
+    label, symbol, budget: 1000, finalEquity, profitLoss: finalEquity - 1000, returnPercent: finalEquity / 10 - 100, weight: 0.5, volatility: 0.12,
+    profitShare: (finalEquity - 1000) / 60, riskShare, inMarketPercent: 60, currencyBeta,
+  })
+  return {
+    currency: 'EUR', riskFree: 0, daysPerYear: 261, initialBalance: 2000, finalEquity: 2060, profitLoss: 60, returnPercent: 3,
+    days: [{ day: '2025-01-06', equity: 2000, exposure: 900 }, { day: '2025-01-07', equity: 2015, exposure: 950 }, { day: '2025-01-08', equity: 2060, exposure: 0 }],
+    returns: returnStats(), returnsMissing: null, cagr: null, calmar: null,
+    drawdowns: { maxDrawdown: -10, maxDrawdownPercent: -0.5, deepest: [], longest: null },
+    legs: [
+      leg('Gold', 'XAUUSD', 1050, 0.7778, { name: 'USD in EUR', beta: 0.05, error: 0.02, t: 2.5, low: 0.01, high: 0.09 }),
+      leg('Zloty', 'EURPLN', 1010, 0.2222),
+    ],
+    markets: {
+      days: 2, alpha: 0.0001, annualAlpha: 0.0261, alphaError: 0.0002, alphaT: 0.5, rSquared: 0.62, daysPerYear: 261, riskFree: 0, merged: [],
+      annualAlphaLow: -0.08, annualAlphaHigh: 0.13, alphaEvidence: 'Luck',
+      loadings: [{ name: 'XAUUSD', beta: 0.48, error: 0.05, t: 9.6, low: 0.38, high: 0.58 }, { name: 'EURPLN', beta: 0.51, error: 0.1, t: 5.1, low: 0.31, high: 0.71 }],
+    },
+    marketsMissing: null,
+    correlation: { labels: ['Gold', 'Zloty'], values: [[1, 0.1], [0.1, 1]], stressValues: [[1, 0.62], [0.62, 1]], stressDays: 5 },
+    diversificationRatio: 1.2910,
+    splits: [
+      { rule: 'AsSet', weights: [0.5, 0.5], exact: true, returnPercent: 3, sharpe: 1.21, volatility: 0.09, maxDrawdownPercent: -0.5, diversificationRatio: 1.291, riskShares: [0.7778, 0.2222] },
+      { rule: 'EqualMoney', weights: [0.5, 0.5], exact: true, returnPercent: 3, sharpe: 1.21, volatility: 0.09, maxDrawdownPercent: -0.5, diversificationRatio: 1.291, riskShares: [0.7778, 0.2222] },
+      { rule: 'InverseVolatility', weights: [1 / 3, 2 / 3], exact: true, returnPercent: 2.33, sharpe: 1.4, volatility: 0.07, maxDrawdownPercent: -0.4, diversificationRatio: 1.25, riskShares: [0.5, 0.5] },
+    ],
+    overlaps: [{ first: 'Gold', second: 'Zloty', bothInMarketPercent: 33.3 }],
+    exposure: { averageLeverage: 0.31, maxLeverage: 0.47, maxGross: 950 },
+    notes: ['The combined drawdowns are measured at each day’s end; each leg’s own backtest marks every candle.'],
+    ...overrides,
   }
 }
