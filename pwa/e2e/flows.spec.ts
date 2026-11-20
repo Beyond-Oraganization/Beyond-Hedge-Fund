@@ -195,6 +195,35 @@ test('combines several strategies with the bot’s engine: two legs in EUR, thei
   await expect(saved.getByText('sample on XAUUSD 1h + sample on EURUSD 4h')).toBeVisible()
 })
 
+test('sweeps a strategy’s parameters with the bot’s engine: 12 trials, the verdict, the heat map, every trial and the export', async ({ page }) => {
+  await connected(page)
+  await page.goto('#/backtest')
+  await page.getByRole('link', { name: 'Parameter sweep' }).click()
+  for (const [name, values] of [['length', '10, 20, 30'], ['spread', '2, 3'], ['lines', '1, 2']] as const) {
+    await page.getByRole('checkbox', { name: new RegExp(`^Vary ${name}`) }).check()
+    await page.getByRole('radio', { name: 'A list', checked: false }).check()
+    await page.getByLabel(`${name}: values`).fill(values)
+  }
+  // The mock bot's market is short: let every trial qualify, whatever its count of trades.
+  await page.getByLabel('At least this many trades').fill('0')
+  await page.getByRole('checkbox', { name: /profits must outweigh its losses/ }).uncheck()
+  await expect(page.getByText(/^12 trials · about \d+ s$/)).toBeVisible()
+  await page.getByRole('button', { name: 'Run the sweep' }).click()
+  await expect(page.getByRole('heading', { name: 'sample on XAUUSD 1h: 12 trials' })).toBeVisible({ timeout: 120_000 })
+  await expect(page.locator('.figure > .label').filter({ hasText: 'Verdict' })).toBeVisible()
+  // The sweep's verdict comes first; the chosen trial's own report below has one too.
+  await expect(page.locator('p.verdict').first()).toContainText(/trials met the constraints in sample/)
+  // Two months of candles: the hold-out alone, and the answer says why.
+  await expect(page.getByText(/No overfitting checks: only \d+ days before the hold-out/)).toBeVisible()
+  await expect(page.locator('table.heat-map button').first()).toBeVisible()
+  const trials = page.getByRole('table', { name: 'Trials on XAUUSD 1h' }).or(page.getByRole('list', { name: 'Trials on XAUUSD 1h' }))
+  await expect(trials.getByText(/· chosen/)).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Export the trials (CSV)' })).toHaveAttribute('download', /\.csv$/)
+  await expect(page.getByRole('link', { name: 'Open as backtest' })).toBeVisible()
+  const saved = page.getByRole('table', { name: 'Saved sweeps' }).or(page.getByRole('list', { name: 'Saved sweeps' }))
+  await expect(saved.getByText('sample on XAUUSD 1h')).toBeVisible()
+})
+
 test('backtests rules of its own, built from the strategy’s syntax, and shows the bot’s message for a band it has not got', async ({ page }) => {
   await connected(page)
   await page.goto('#/backtest')

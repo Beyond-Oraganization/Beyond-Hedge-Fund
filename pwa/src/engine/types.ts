@@ -468,3 +468,118 @@ export type CombinedResult = {
 export type DeviceCombined = { ok: true; engine: string; combined: CombinedResult }
 
 export type CombineAnswer = DeviceCombined | EngineFailure
+
+/** What a sweep ranks its trials by, in sample (Core/Backtesting/Sweeps/SweepRequest.cs, engine 2.10.0 on). */
+export type SweepObjective = 'Sharpe' | 'Sortino' | 'Calmar' | 'AlphaT'
+
+/** One parameter a sweep varies, and its values. */
+export type SweepAxis = { name: string; values: number[] }
+
+/** A parameter sweep: the base backtest request, what to vary and try, how the days split, and what counts as best. */
+export type SweepRequest = {
+  base: EngineRequest
+  vary: SweepAxis[]
+  /** Each set of rules to try; none means the base request's rules. */
+  ruleSets?: string[][]
+  /** The last `sharePercent` % of the days (30 by default), or every day from `from` ("2025-06-01"). */
+  holdOut?: { sharePercent?: number; from?: string | null }
+  objective?: SweepObjective
+  constraints?: { minimumTrades?: number; maxDrawdownPercent?: number | null; profitFactorAboveOne?: boolean }
+  /** Trials of earlier sweeps on the same data, counted in the deflated Sharpe ratio's N. */
+  earlierTrials?: number
+  heatMap?: { x: string; y: string } | null
+}
+
+export type SweepProblem = { trial: number; message: string }
+
+export type DeviceSweepPlan = { ok: true; engine: string; trials: number; ruleSets: number; axes: SweepAxis[]; problems: SweepProblem[] }
+
+/** What a trial did over one part of the days (Core/Backtesting/Sweeps/SweepRun.cs); drawdowns zero or negative. */
+export type TrialFigures = {
+  days: number
+  returnPercent: number
+  sharpe: number | null
+  psr: number | null
+  sortino: number | null
+  calmar: number | null
+  maxDrawdownPercent: number
+  trades: number
+  winRate: number
+  profitFactor: number | null
+  beta: number | null
+  alphaT: number | null
+  kellyGross: KellyEstimate
+  kellyNet: KellyEstimate
+}
+
+/** One trial: its values, figures whole, in sample and in the hold-out, and its daily excess returns (float32, base64). */
+export type SweepTrial = {
+  index: number
+  parameters: Record<string, number>
+  ruleSet: number
+  steps: number[]
+  whole: TrialFigures
+  inSample: TrialFigures
+  outOfSample: TrialFigures
+  longestHoldingDays: number
+  eligible: boolean
+  notEligibleBecause: string | null
+  returns: string
+}
+
+/** One `Sweep` call's share of the trials; the share starting at trial 0 also has the sweep's days. */
+export type DeviceSweep = {
+  ok: true
+  engine: string
+  first: number
+  count: number
+  days: string[] | null
+  daysPerYear: number
+  holdOutStart: number
+  trials: SweepTrial[]
+  problems: SweepProblem[]
+  computedMs: number
+}
+
+export type SweepVerdict = 'Robust' | 'Promising' | 'LikelyOverfitted' | 'NoEligibleTrial'
+export type PlateauKind = 'Plateau' | 'Mixed' | 'Spike' | 'Unknown'
+
+/** One market's sweep, summed up (Core/Backtesting/Sweeps/SweepSummary.cs). Sharpe ratios are a year. */
+export type MarketSweepSummary = {
+  label: string
+  trials: number
+  /** The deflated Sharpe ratio's N: this sweep's trials and the earlier ones counted. */
+  trialsCounted: number
+  eligible: number
+  objective: SweepObjective
+  chosen: { index: number; inSampleObjective: number; outOfSampleObjective: number | null; outOfSampleRank: number | null; rankedOutOfSample: number } | null
+  deflated: { sharpe: number; luckSharpe: number; dsr: number; evidence: SharpeEvidence; trials: number; days: number } | null
+  overfitting: {
+    pbo: number
+    blocks: number
+    splits: number
+    /** Logits from −4 to 4 in bins of 0.5; the ends gather the rest. */
+    histogram: number[]
+    points: { inSample: number; outOfSample: number }[]
+    degradationSlope: number
+  } | null
+  cpcv: { groups: number; testGroups: number; embargoDays: number; splits: { testGroups: number[]; chosen: number; testSharpe: number }[]; pathSharpes: number[] } | null
+  walkForward: { steps: { testStart: string; testEnd: string; chosen: number; testSharpe: number }[]; chainedSharpe: number | null; chained: { day: string; value: number }[] } | null
+  crossValidatedMissing: string | null
+  plateau: { score: number | null; kind: PlateauKind; neighbours: number }
+  sensitivities: { name: string; perStep: number | null; profile: { value: number; objective: number | null }[] }[]
+  heatMap: { x: string; y: string; xValues: number[]; yValues: number[]; cells: { x: number; y: number; trial: number | null; inSample: number | null; outOfSample: number | null }[] } | null
+  verdict: SweepVerdict
+  reasons: string[]
+}
+
+export type SweepSummary = { markets: MarketSweepSummary[]; crossMarkets: { first: string; second: string; spearman: number; trials: number }[] }
+
+/** What `SummarizeSweep` takes: the sweep as asked, its axes in the grid's order, and every market's trials. */
+export type SweepSummaryRequest = { sweep: SweepRequest; axes: SweepAxis[]; markets: { label: string; days: string[]; daysPerYear: number; trials: SweepTrial[] }[] }
+
+export type DeviceSweepSummary = { ok: true; engine: string; summary: SweepSummary; computedMs: number }
+
+export type SweepPlanAnswer = DeviceSweepPlan | EngineFailure
+export type SweepAnswer = DeviceSweep | EngineFailure
+export type SweepSummaryAnswer = DeviceSweepSummary | EngineFailure

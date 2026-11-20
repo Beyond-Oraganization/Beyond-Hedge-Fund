@@ -72,6 +72,9 @@ const engine: Engine = {
   // One strategy at a time on this screen.
   backtestAll: () => Promise.reject(new Error('not on this screen')),
   combine: () => Promise.reject(new Error('not on this screen')),
+  planSweep: () => Promise.reject(new Error('not on this screen')),
+  sweep: () => Promise.reject(new Error('not on this screen')),
+  summarizeSweep: () => Promise.reject(new Error('not on this screen')),
   // As the engine plans it: gold's USD into EUR through EURUSD, when this device has it.
   async planConversion({ symbol, currency, markets }) {
     if (symbol === 'XAUUSD' && currency === 'EUR' && markets.includes('EURUSD'))

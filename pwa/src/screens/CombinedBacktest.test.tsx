@@ -39,6 +39,9 @@ const engine: Engine = {
   backtest: () => Promise.reject(new Error('not on this screen')),
   simulate: () => Promise.reject(new Error('not on this screen')),
   summarize: () => Promise.reject(new Error('not on this screen')),
+  planSweep: () => Promise.reject(new Error('not on this screen')),
+  sweep: () => Promise.reject(new Error('not on this screen')),
+  summarizeSweep: () => Promise.reject(new Error('not on this screen')),
   async backtestAll(asked, { onProgress } = {}) {
     jobs.push(...asked)
     onProgress?.(asked.length, asked.length)
