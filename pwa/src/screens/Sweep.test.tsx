@@ -38,6 +38,7 @@ const server = setupServer(
 const engine: Engine = {
   setStrategies() {},
   levels: () => Promise.reject(new Error('not on this screen')),
+  simulateCombined: () => Promise.reject(new Error('not on this screen')),
   simulate: () => Promise.reject(new Error('not on this screen')),
   summarize: () => Promise.reject(new Error('not on this screen')),
   backtestAll: () => Promise.reject(new Error('not on this screen')),

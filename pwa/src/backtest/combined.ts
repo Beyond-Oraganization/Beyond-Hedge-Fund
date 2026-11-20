@@ -1,6 +1,18 @@
 import type { StrategyInput } from '../api/commands.ts'
 import type { SessionSizing } from '../api/types.ts'
-import type { CombinedResult, CombineRequest, DeviceBacktest, EngineRequest, SplitRule } from '../engine/types.ts'
+import type {
+  BundleMarket,
+  CandleColumns,
+  CombinedResult,
+  CombinedSimulateRequest,
+  CombineRequest,
+  DeviceBacktest,
+  DeviceCombinedScenarios,
+  EngineRequest,
+  PathMethod,
+  ScenarioSummary,
+  SplitRule,
+} from '../engine/types.ts'
 import { fmtPercent } from '../format.ts'
 import { db } from '../state/db.ts'
 import type { StrategyConfig } from '../strategy/config.ts'
@@ -20,10 +32,16 @@ export const MAX_LEGS = 8
 /** One leg as the form holds it: a strategy setup, its budget, and its costs and fill (the currency is the combined one). */
 export type LegForm = { id: string; label: string; config: StrategyConfig; budget: string; conditions: ConditionsForm }
 
-/** The combined run's own settings. */
-export type CombinedForm = { currency: string; riskFree: string; from: string; to: string }
+/** How many alternative histories the combined Monte Carlo backtests the legs on; '0' is none. */
+export const COMBINED_SCENARIOS = ['0', '100', '200', '500', '1000'] as const
 
-export const DEFAULT_COMBINED: CombinedForm = { currency: 'EUR', riskFree: '', from: '', to: '' }
+/** The combined run's own settings; runs saved before engine 2.11.0 have no Monte Carlo fields. */
+export type CombinedForm = { currency: string; riskFree: string; from: string; to: string; scenarios?: (typeof COMBINED_SCENARIOS)[number]; method?: PathMethod }
+
+export const DEFAULT_COMBINED: Required<CombinedForm> = { currency: 'EUR', riskFree: '', from: '', to: '', scenarios: '0', method: 'Bootstrap' }
+
+/** A saved form as the screen takes it: the fields a run saved before 2.11.0 lacks, at their defaults. */
+export const formOf = (form: CombinedForm): Required<CombinedForm> => ({ ...DEFAULT_COMBINED, ...form })
 
 /** "sample on XAUUSD 1h", or the name given. */
 export const legName = (leg: LegForm) => leg.label.trim() || `${leg.config.strategy} on ${leg.config.market}`
@@ -137,13 +155,99 @@ export function legSummary(name: string, answer: DeviceBacktest): LegSummary {
   }
 }
 
-/** A combined run as this device keeps it: what was asked, each leg's own figures, and the engine's combined answer. */
-export type CombinedRun = { kind: 'combined'; id: string; at: number; form: CombinedForm; legs: LegForm[]; summaries: LegSummary[]; combined: CombinedResult; engine: string }
+/** One market's candles, to go in a column bundle. */
+export type BundledMarket = { symbol: string; interval: string; candles: CandleColumns }
+
+/**
+ * Every market as one column bundle (the bot's ADR 0007): each column the markets' values one after another, and each
+ * market's count, in the same order. A market given twice (two legs on XAUUSD 1h, or a leg's market that another leg
+ * converts through) goes in once.
+ */
+export function bundleOf(markets: BundledMarket[]): { markets: BundleMarket[]; candles: CandleColumns } {
+  const unique = markets.filter((market, index) => markets.findIndex((other) => other.symbol === market.symbol && other.interval === market.interval) === index)
+  const total = unique.reduce((sum, market) => sum + market.candles.time.length, 0)
+  const column = (name: keyof CandleColumns) => {
+    const values = new Float64Array(total)
+    let offset = 0
+    for (const market of unique) {
+      values.set(market.candles[name], offset)
+      offset += market.candles[name].length
+    }
+    return values
+  }
+  return {
+    markets: unique.map((market) => ({ symbol: market.symbol, interval: market.interval, count: market.candles.time.length })),
+    candles: { time: column('time'), open: column('open'), high: column('high'), low: column('low'), close: column('close'), volume: column('volume') },
+  }
+}
+
+/** What `SimulateCombined` runs: each leg's own request, as its backtest ran, over the bundle's markets. */
+export function simulateRequest(form: CombinedForm, legs: LegForm[], requests: EngineRequest[], markets: BundleMarket[], seed: number): CombinedSimulateRequest {
+  return {
+    currency: form.currency,
+    riskFree: readNumber(form.riskFree) ?? 0,
+    legs: requests.map((request, index) => ({ label: legName(legs[index]!), request })),
+    markets,
+    scenarios: { method: formOf(form).method, seed },
+  }
+}
+
+/** The combined Monte Carlo as this device keeps it. */
+export type CombinedScenarios = {
+  method: PathMethod
+  seed: number
+  meanBlockDays: number | null
+  /** Brownian motion's correlations, with the markets they are between; null for the bootstrap. */
+  correlations: { markets: string[]; values: number[][] } | null
+  notes: string[]
+  summary: ScenarioSummary
+  /** The 51 times of the balance paths, in milliseconds. */
+  times: number[]
+  /** The real history's combined balance at those times. */
+  real: number[]
+  /** Every scenario's final balance, in scenario order. */
+  finals: number[]
+  /** Every scenario's balance at the 51 times; null where not kept (a browser keeps the summary only). */
+  paths: number[][] | null
+}
+
+/** The engine's scenarios and their summary, as a run keeps them. */
+export function keepCombinedScenarios(answer: DeviceCombinedScenarios, summary: ScenarioSummary, markets: BundleMarket[]): CombinedScenarios {
+  return {
+    method: answer.method,
+    seed: answer.seed,
+    meanBlockDays: answer.meanBlockDays,
+    correlations: answer.correlations ? { markets: markets.map((market) => `${market.symbol} ${market.interval}`), values: answer.correlations } : null,
+    notes: answer.notes,
+    summary,
+    times: answer.pointTimes.map((time) => Date.parse(time)),
+    real: answer.real?.points ?? [],
+    finals: answer.results.map((result) => result.finalBalance),
+    paths: answer.results.map((result) => result.points),
+  }
+}
+
+/** A combined run as this device keeps it: what was asked, each leg's own figures, the engine's combined answer, and its Monte Carlo (2.11.0 on). */
+export type CombinedRun = {
+  kind: 'combined'
+  id: string
+  at: number
+  form: CombinedForm
+  legs: LegForm[]
+  summaries: LegSummary[]
+  combined: CombinedResult
+  engine: string
+  monteCarlo?: CombinedScenarios | null
+}
 
 const runKey = (connectionId: string, id: string) => `combined:${connectionId}:${id}`
 
-/** Keeps a run on this device, beside the others of the connection. */
-export const saveCombined = (connectionId: string, run: CombinedRun) => db.set(runKey(connectionId, run.id), run)
+/**
+ * Keeps a run on this device, beside the others of the connection. Every scenario's path (up to 1,000 × 51 numbers) is
+ * kept only where this device keeps everything (the desktop app); a browser keeps where they ended.
+ */
+export const saveCombined = (connectionId: string, run: CombinedRun, { keepEverything }: { keepEverything: boolean }) =>
+  db.set(runKey(connectionId, run.id), keepEverything || !run.monteCarlo ? run : { ...run, monteCarlo: { ...run.monteCarlo, paths: null } })
 
 /** The connection's combined runs, oldest first. */
 export async function loadCombined(connectionId: string): Promise<CombinedRun[]> {

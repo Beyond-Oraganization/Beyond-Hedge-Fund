@@ -469,6 +469,43 @@ export type DeviceCombined = { ok: true; engine: string; combined: CombinedResul
 
 export type CombineAnswer = DeviceCombined | EngineFailure
 
+/** One market of a column bundle (the bot's ADR 0007): its candles come next in the columns, `count` of them. */
+export type BundleMarket = { symbol: string; interval: string; count: number }
+
+/**
+ * The Monte Carlo of a combined backtest (engine 2.11.0 on): every leg's own device backtest request in the combined
+ * currency, and every market they trade or convert through as one column bundle, in `markets` order.
+ */
+export type CombinedSimulateRequest = {
+  currency: string
+  riskFree: number
+  legs: { label: string; request: EngineRequest }[]
+  markets: BundleMarket[]
+  scenarios: { method: PathMethod; seed: number }
+}
+
+/** What one `SimulateCombined` call answered: its share of the scenarios, the markets' paths made together. */
+export type DeviceCombinedScenarios = {
+  ok: true
+  engine: string
+  method: PathMethod
+  seed: number
+  /** The bootstrap's mean block length, in UTC days; null for Brownian motion. */
+  meanBlockDays: number | null
+  /** Brownian motion's correlations of the markets, in the bundle's order; null for the bootstrap. */
+  correlations: number[][] | null
+  /** What the paths assumed or had to change. */
+  notes: string[]
+  /** The real history combined and scored as the scenarios are; only in the share that starts at scenario 0. */
+  real: ScenarioResult | null
+  results: ScenarioResult[]
+  computedMs: number
+  /** The times of every result's 51 points. */
+  pointTimes: Iso[]
+}
+
+export type SimulateCombinedAnswer = DeviceCombinedScenarios | EngineFailure
+
 /** What a sweep ranks its trials by, in sample (Core/Backtesting/Sweeps/SweepRequest.cs, engine 2.10.0 on). */
 export type SweepObjective = 'Sharpe' | 'Sortino' | 'Calmar' | 'AlphaT'
 

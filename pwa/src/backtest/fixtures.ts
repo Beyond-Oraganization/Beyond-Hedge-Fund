@@ -1,4 +1,4 @@
-import type { BacktestAnalysis, CombinedResult, DeviceBacktest, DeviceScenarios, DeviceSummary, DeviceTrade, MarketSweepSummary, ReturnStats, ScenarioResult, SweepSummary, SweepTrial, TrialFigures } from '../engine/types.ts'
+import type { BacktestAnalysis, CombinedResult, DeviceBacktest, DeviceCombinedScenarios, DeviceScenarios, DeviceSummary, DeviceTrade, MarketSweepSummary, ReturnStats, ScenarioResult, SweepSummary, SweepTrial, TrialFigures } from '../engine/types.ts'
 
 /** Test data: engine answers as the bot's BacktestEngine.cs writes them. */
 
@@ -107,6 +107,18 @@ export function summaryAnswer(): DeviceSummary {
       percentiles: [5, 25, 50, 75, 95].map((percentile) => ({ percentile, finalBalance: 1000, returnPercent: 0, maxDrawdownPercent: -1 })),
       realBeatPercent: 66.66666666666667, meanPath: rising(1000, 1006.66),
     },
+  }
+}
+
+/** One share of a combined Monte Carlo as CombinedSimulation.cs writes it: `count` scenarios from `first`, the real history with scenario 0. */
+export function combinedScenariosAnswer(first: number, count: number, overrides: Partial<DeviceCombinedScenarios> = {}): DeviceCombinedScenarios {
+  return {
+    ok: true, engine: '2.11.0', method: 'Bootstrap', seed: 7, meanBlockDays: 6.2, correlations: null,
+    notes: ['Whole UTC days are resampled together in blocks of about 6 days, the same days for every market.'],
+    real: first === 0 ? { ...scenarioResult(-1, 2060), points: rising(2000, 2060) } : null,
+    results: Array.from({ length: count }, (_, i) => ({ ...scenarioResult(first + i, 2000 + (first + i) % 7 * 10), points: rising(2000, 2000 + (first + i) % 7 * 10) })),
+    computedMs: 40, pointTimes: POINT_TIMES,
+    ...overrides,
   }
 }
 

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { figuresOf } from '../../backtest/figures.ts'
 import { isDeviceRun, METHOD_NAMES, type KeptScenarios, type SavedRun } from '../../backtest/runs.ts'
+import type { PathMethod, ScenarioSummary } from '../../engine/types.ts'
 import { verdictOf } from '../../backtest/verdict.ts'
 import { fmtCount, fmtMoney, fmtPercent, fmtSignedPercent } from '../../format.ts'
 import { useSettings } from '../../state/settings.ts'
@@ -83,7 +84,59 @@ export function MonteCarloSection({ mc }: { mc: KeptScenarios }) {
       <p className="p">
         The strategy was backtested again, exactly as above, on {fmtCount(summary.scenarios)} alternative price histories of the same dates. {madeBy(mc)}
       </p>
-      <MonteCarloChart start={summary.initialBalance} times={mc.times} meanPath={summary.meanPath} paths={paths} finals={mc.finals} meanFinal={summary.meanFinal} real={mc.real} />
+      <ScenarioOutcomes summary={summary} times={mc.times} real={mc.real} finals={mc.finals} paths={paths} method={mc.method} seed={mc.seed} closedDrawdown />
+      <div className="stack-sm">
+        <h3 className="h3">Alternative price paths</h3>
+        <p className="hint">{mc.details ? `${mc.details.prices.length} of the alternative histories` : 'The alternative histories'}, around the real price they were made from.</p>
+        <PricePathsChart times={mc.priceTimes} real={mc.realPrices} paths={mc.details?.prices ?? null} />
+      </div>
+      <Callout label="What a Monte Carlo leaves out">
+        {mc.method === 'Bootstrap' ? (
+          <p>
+            Every candle is a move this market really made, but the blocks are glued at random: trends and regimes longer than a block are broken up, and a weekend gap can land
+            mid-week. Fees and spread are left out, as in the backtest.
+          </p>
+        ) : (
+          <p>
+            Brownian motion is calmer than any real market: no fat tails, no calm and wild spells, no gaps. Read it as a baseline beside the bootstrap: a strategy that does better
+            on the bootstrap leans on structure the real market has. Fees and spread are left out, as in the backtest.
+          </p>
+        )}
+      </Callout>
+    </div>
+  )
+}
+
+/**
+ * What the scenarios of any Monte Carlo found, one backtest's or a combined one's: every scenario's balance over time
+ * with the average and the real history's, where they ended, the share above the start and the real history's rank,
+ * and the percentiles (closed until opened). `closedDrawdown` adds the drawdown of closed trades, which a combined
+ * backtest (marked at each day's end) does not have.
+ */
+export function ScenarioOutcomes({
+  summary,
+  times,
+  real,
+  finals,
+  paths,
+  method,
+  seed,
+  closedDrawdown = false,
+}: {
+  summary: ScenarioSummary
+  times: number[]
+  real: number[]
+  finals: number[]
+  paths: number[][] | null
+  method: PathMethod
+  seed: number
+  closedDrawdown?: boolean
+}) {
+  type Row = ScenarioSummary['percentiles'][number]
+  const marked = !closedDrawdown || summary.percentiles.some((row) => row.equityDrawdownPercent != null && row.equityDrawdownPercent !== 0)
+  return (
+    <>
+      <MonteCarloChart start={summary.initialBalance} times={times} meanPath={summary.meanPath} paths={paths} finals={finals} meanFinal={summary.meanFinal} real={real} />
       {paths ? null : <p className="hint">This browser keeps where the scenarios ended, not their paths: run it again to see them. The desktop app keeps everything.</p>}
       <div className="big-figure">
         <span className="value">{fmtPercent(summary.endedAboveStartPercent, 1)}</span>
@@ -114,38 +167,18 @@ export function MonteCarloSection({ mc }: { mc: KeptScenarios }) {
               { key: 'p', header: 'Percentile', render: (row) => `${row.percentile}%` },
               { key: 'final', header: 'Final balance', align: 'right', render: (row) => fmtMoney(row.finalBalance) },
               { key: 'return', header: 'Return', align: 'right', render: (row) => fmtSignedPercent(row.returnPercent) },
-              { key: 'dd', header: 'Drawdown, closed', align: 'right', render: (row) => fmtPercent(row.maxDrawdownPercent) },
-              ...(summary.percentiles.some((row) => row.equityDrawdownPercent != null && row.equityDrawdownPercent !== 0)
-                ? [{ key: 'marked', header: 'Drawdown, marked', align: 'right' as const, render: (row: (typeof summary.percentiles)[number]) => fmtPercent(row.equityDrawdownPercent ?? 0) }]
-                : []),
+              ...(closedDrawdown ? [{ key: 'dd', header: 'Drawdown, closed', align: 'right' as const, render: (row: Row) => fmtPercent(row.maxDrawdownPercent) }] : []),
+              ...(marked ? [{ key: 'marked', header: 'Drawdown, marked', align: 'right' as const, render: (row: Row) => fmtPercent(row.equityDrawdownPercent ?? row.maxDrawdownPercent) }] : []),
               ...(summary.percentiles.some((row) => row.sharpe != null)
-                ? [{ key: 'sharpe', header: 'Sharpe', align: 'right' as const, render: (row: (typeof summary.percentiles)[number]) => row.sharpe?.toFixed(2) ?? '–' }]
+                ? [{ key: 'sharpe', header: 'Sharpe', align: 'right' as const, render: (row: Row) => row.sharpe?.toFixed(2) ?? '–' }]
                 : []),
             ]}
           />
           <p className="foot">
-            {fmtCount(summary.scenarios)} alternative histories by {METHOD_NAMES[mc.method]} · seed {mc.seed}
+            {fmtCount(summary.scenarios)} alternative histories by {METHOD_NAMES[method]} · seed {seed}
           </p>
         </div>
       </Remembered>
-      <div className="stack-sm">
-        <h3 className="h3">Alternative price paths</h3>
-        <p className="hint">{mc.details ? `${mc.details.prices.length} of the alternative histories` : 'The alternative histories'}, around the real price they were made from.</p>
-        <PricePathsChart times={mc.priceTimes} real={mc.realPrices} paths={mc.details?.prices ?? null} />
-      </div>
-      <Callout label="What a Monte Carlo leaves out">
-        {mc.method === 'Bootstrap' ? (
-          <p>
-            Every candle is a move this market really made, but the blocks are glued at random: trends and regimes longer than a block are broken up, and a weekend gap can land
-            mid-week. Fees and spread are left out, as in the backtest.
-          </p>
-        ) : (
-          <p>
-            Brownian motion is calmer than any real market: no fat tails, no calm and wild spells, no gaps. Read it as a baseline beside the bootstrap: a strategy that does better
-            on the bootstrap leans on structure the real market has. Fees and spread are left out, as in the backtest.
-          </p>
-        )}
-      </Callout>
-    </div>
+    </>
   )
 }

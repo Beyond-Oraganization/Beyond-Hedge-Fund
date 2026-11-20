@@ -293,3 +293,67 @@ describe('a parameter sweep (engine 2.10.0)', () => {
     expect(started[0]!.kinds).toEqual(['summarizeSweep'])
   })
 })
+
+describe('a combined Monte Carlo (engine 2.11.0)', () => {
+  const combinedRequest = { currency: 'EUR', riskFree: 0, legs: [], markets: [{ symbol: 'XAUUSD', interval: '1h', count: 3 }], scenarios: { method: 'Bootstrap' as const, seed: 1 } }
+
+  it('shares the scenarios out a few at a time, in order, with the real history of the first share', async () => {
+    const asked: { first: number; count: number }[] = []
+    const engine = createEngine({
+      base: 'https://app.test/engine/',
+      workers: 2,
+      spawn: () => {
+        const worker: EngineWorker = {
+          onmessage: null,
+          onerror: null,
+          terminate() {},
+          postMessage(call: WorkerCall) {
+            if (call.kind !== 'simulateCombined') return
+            asked.push({ first: call.first, count: call.count })
+            const value = {
+              ok: true, engine: '2.11.0', method: 'Bootstrap', seed: 1, meanBlockDays: 5, correlations: null, notes: [], pointTimes: [],
+              real: call.first === 0 ? result(-1) : null, results: Array.from({ length: call.count }, (_, i) => result(call.first + i)).reverse(), computedMs: 2,
+            }
+            setTimeout(() => worker.onmessage?.({ data: { id: call.id, value: JSON.stringify(value) } } as MessageEvent<WorkerReply>), 1)
+          },
+        }
+        return worker
+      },
+    })
+    const progress: number[] = []
+
+    const answer = await engine.simulateCombined(combinedRequest, candles, 24, { onProgress: (done) => progress.push(done) })
+
+    expect(answer.ok && answer.results.map((r) => r.scenario)).toEqual(Array.from({ length: 24 }, (_, i) => i))
+    expect(answer.ok && answer.real?.scenario).toBe(-1)
+    expect(asked.every((share) => share.count === 3)).toBe(true)
+    expect(progress.at(-1)).toBe(24)
+  })
+
+  it('answers the engine’s message for a wrong request, and hands out no more shares', async () => {
+    const asked: number[] = []
+    const failure = { ok: false, engine: '2.11.0', error: { message: 'ETHUSDT 1h is not in the bundle: add its candles to \'markets\'.' } }
+    const engine = createEngine({
+      base: 'https://app.test/engine/',
+      workers: 1,
+      spawn: () => {
+        const worker: EngineWorker = {
+          onmessage: null,
+          onerror: null,
+          terminate() {},
+          postMessage(call: WorkerCall) {
+            if (call.kind !== 'simulateCombined') return
+            asked.push(call.first)
+            setTimeout(() => worker.onmessage?.({ data: { id: call.id, value: JSON.stringify(failure) } } as MessageEvent<WorkerReply>), 1)
+          },
+        }
+        return worker
+      },
+    })
+
+    const answer = await engine.simulateCombined(combinedRequest, candles, 30)
+
+    expect(answer).toEqual(failure)
+    expect(asked).toEqual([0])
+  })
+})

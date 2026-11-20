@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { combinedVerdict, SPLIT_NAMES, type CombinedRun, type LegSummary } from '../../backtest/combined.ts'
+import { combinedVerdict, SPLIT_NAMES, type CombinedRun, type CombinedScenarios, type LegSummary } from '../../backtest/combined.ts'
 import { dayTime } from '../../backtest/runs.ts'
 import { alphaTone, alphaWords, sharpeTone } from '../../backtest/verdict.ts'
 import type { CombinedLeg, CombinedResult } from '../../engine/types.ts'
@@ -8,6 +8,7 @@ import { Chart } from '../Chart.tsx'
 import { DataTable } from '../DataTable.tsx'
 import { Segmented } from '../Field.tsx'
 import { Callout, Figure } from '../ui.tsx'
+import { ScenarioOutcomes } from './Report.tsx'
 import { ChartTip, useWidth } from './charting.tsx'
 
 const ratio = (value: number | null | undefined, digits = 2) => (value == null ? '–' : value.toFixed(digits))
@@ -473,5 +474,54 @@ export function CombinedNotes({ result }: { result: CombinedResult }) {
         </p>
       ) : null}
     </Callout>
+  )
+}
+
+/** How the combined scenarios were made, in a sentence. */
+function combinedMadeBy(mc: CombinedScenarios): string {
+  if (mc.method === 'Bootstrap')
+    return `Made by the bootstrap: whole UTC days of real moves, in blocks of about ${(mc.meanBlockDays ?? 1).toFixed(0)} days, the same days for every market.`
+  return 'Made by Brownian motion: each market a random walk with its own real drift and volatility, the markets correlated as they were.'
+}
+
+/**
+ * The Monte Carlo of a combined backtest (engine 2.11.0 on): every leg backtested again on alternative histories in which
+ * all the markets were made together, so the legs keep how they moved together and the diversification is not flattered.
+ */
+export function CombinedMonteCarlo({ mc, currency }: { mc: CombinedScenarios; currency: string }) {
+  const pairs = mc.correlations
+    ? mc.correlations.markets.flatMap((first, row) =>
+        mc.correlations!.markets.slice(row + 1).map((second, offset) => ({ first, second, value: mc.correlations!.values[row]![row + 1 + offset]! })),
+      )
+    : []
+  return (
+    <div className="stack">
+      <p className="p">
+        Every leg was backtested again, exactly as above, on {fmtCount(mc.summary.scenarios)} alternative histories of the same dates, all the markets made together, and
+        added up in {currency} as above. {combinedMadeBy(mc)}
+      </p>
+      {pairs.length ? (
+        <p className="hint">
+          Correlations used: {pairs.map((pair) => `${pair.first} and ${pair.second} ${pair.value.toFixed(2)}`).join('; ')}.
+        </p>
+      ) : null}
+      <ScenarioOutcomes summary={mc.summary} times={mc.times} real={mc.real} finals={mc.finals} paths={mc.paths} method={mc.method} seed={mc.seed} />
+      <Callout label="What this Monte Carlo leaves out">
+        {mc.notes.map((note) => (
+          <p key={note}>{note}</p>
+        ))}
+        {mc.method === 'Bootstrap' ? (
+          <p>
+            Every day is one the markets really had, together, but the blocks are glued at random: trends and regimes longer than a block are broken up. Each leg pays its
+            costs as in its backtest.
+          </p>
+        ) : (
+          <p>
+            Brownian motion is calmer than any real market: no fat tails, no calm and wild spells, no gaps, and the correlation never rises in a crash. Read it as a baseline
+            beside the bootstrap. Each leg pays its costs as in its backtest.
+          </p>
+        )}
+      </Callout>
+    </div>
   )
 }
