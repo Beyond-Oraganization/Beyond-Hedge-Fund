@@ -2,9 +2,14 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useBot, useRead } from '../api/bot.ts'
 import { CommandFailure } from '../api/client.ts'
 import {
+  bundleOf,
+  COMBINED_SCENARIOS,
   combinedErrors,
   combineRequest,
   DEFAULT_COMBINED,
+  formOf,
+  keepCombinedScenarios,
+  simulateRequest,
   legErrors,
   legName,
   legRequest,
@@ -14,6 +19,7 @@ import {
   removeCombined,
   saveCombined,
   type CombinedForm,
+  type BundledMarket,
   type CombinedRun,
   type LegForm,
 } from '../backtest/combined.ts'
@@ -32,6 +38,7 @@ import {
   BudgetSplits,
   CombinedEquity,
   CombinedFigures,
+  CombinedMonteCarlo,
   CombinedNotes,
   CorrelationMatrix,
   LegsTable,
@@ -40,7 +47,7 @@ import {
 } from '../components/backtest/CombinedReport.tsx'
 import { ConditionsFields } from '../components/backtest/ConditionsFields.tsx'
 import { DataTable } from '../components/DataTable.tsx'
-import { describedBy, Field } from '../components/Field.tsx'
+import { describedBy, Field, Segmented } from '../components/Field.tsx'
 import { ScreenHead } from '../components/ScreenHead.tsx'
 import { Sheet } from '../components/Sheet.tsx'
 import { StrategyForm } from '../components/StrategyForm.tsx'
@@ -48,24 +55,41 @@ import { Button, Callout, EmptyState, Section, Skeleton } from '../components/ui
 import { useEngine } from '../engine/context.ts'
 import { EngineCancelled } from '../engine/engine.ts'
 import type { BacktestJob } from '../engine/engine.ts'
-import type { DeviceBacktest } from '../engine/types.ts'
-import { fmtCount, fmtMoney, fmtSignedPercent, fmtTime, tone } from '../format.ts'
+import type { DeviceBacktest, EngineRequest, PathMethod } from '../engine/types.ts'
+import { keepsEverything } from '../storage/local-store.ts'
+import { fmtCount, fmtMoney, fmtPercent, fmtSignedPercent, fmtTime, tone } from '../format.ts'
 import { useMarkets, useStrategies } from '../hooks/data.ts'
 import { db } from '../state/db.ts'
 import type { StrategyDefinition } from '../api/parse/strategies.ts'
 import type { MarketRow } from '../api/parse/markets.ts'
 import { initialConfig, toInput, validateConfig } from '../strategy/config.ts'
 
-type Phase = (PreparePhase & { leg: string }) | { step: 'legs'; done: number; total: number } | { step: 'combine' }
+type Phase =
+  | (PreparePhase & { leg: string })
+  | { step: 'legs'; done: number; total: number }
+  | { step: 'combine' }
+  | { step: 'scenarios'; done: number; total: number }
+  | { step: 'summary' }
 
 function phaseWords(phase: Phase): string {
   if (phase.step === 'legs')
     return `Backtesting the legs on this device: ${fmtCount(phase.done)} of ${fmtCount(phase.total)} done…`
   if (phase.step === 'combine') return 'Adding the legs up…'
+  if (phase.step === 'scenarios')
+    return `Backtesting the legs on alternative histories: ${fmtCount(phase.done)} of ${fmtCount(phase.total)} scenarios done…`
+  if (phase.step === 'summary') return 'Summing the scenarios up…'
   return `${phase.leg}: ${prepareWords(phase)}`
 }
 
 const newId = () => `${Date.now()}-${Math.floor(Math.random() * 1e6)}`
+
+/** A seed for one Monte Carlo: every worker makes its scenarios from it. */
+const newSeed = () => Math.floor(Math.random() * 2 ** 31)
+
+const METHODS: { value: PathMethod; label: string }[] = [
+  { value: 'Bootstrap', label: 'Bootstrap' },
+  { value: 'BrownianMotion', label: 'Brownian motion' },
+]
 
 /**
  * Several strategies at once (the bot's plan, Appendix A Part C): each leg a strategy on its market with its own budget,
@@ -90,7 +114,7 @@ export default function CombinedBacktest() {
   const rows = markets.data?.parsed.ok ? markets.data.parsed.value : null
   const stored = useMemo(() => (rows ? storedMarkets(rows) : []), [rows])
   const [legs, setLegs] = useState<LegForm[]>([])
-  const [form, setForm] = useState<CombinedForm>(DEFAULT_COMBINED)
+  const [form, setForm] = useState<Required<CombinedForm>>(DEFAULT_COMBINED)
   const [editing, setEditing] = useState<{ leg: LegForm; isNew: boolean } | null>(null)
   const [touched, setTouched] = useState(false)
   const [phase, setPhase] = useState<Phase | null>(null)
@@ -134,6 +158,8 @@ export default function CombinedBacktest() {
     setFailure(null)
     try {
       const jobs: BacktestJob[] = []
+      // Every market a leg trades or converts through, for the Monte Carlo's column bundle.
+      const bundled: BundledMarket[] = []
       for (const leg of legs) {
         const name = legName(leg)
         const definition = definitions.find((d) => d.name === leg.config.strategy)
@@ -144,7 +170,7 @@ export default function CombinedBacktest() {
         }
         const candles = await prepareCandles(connection.id, `${input.symbol} ${input.interval}`, read, preparing)
         void db.set(costsKey(connection.id, input.symbol), costsPart(leg.conditions))
-        const { conversion, columns } = await prepareConversion(
+        const { conversion, columns, markets: hops } = await prepareConversion(
           engine(),
           connection.id,
           read,
@@ -157,6 +183,7 @@ export default function CombinedBacktest() {
         })
         const kelly = await prepareKelly(input, read, preparing)
         jobs.push({ request: legRequest(leg, input, kelly, form, conversion), candles, conversion: columns })
+        bundled.push({ symbol: input.symbol, interval: input.interval, candles }, ...hops)
       }
 
       setPhase({ step: 'legs', done: 0, total: jobs.length })
@@ -173,6 +200,25 @@ export default function CombinedBacktest() {
       setPhase({ step: 'combine' })
       const combined = await engine().combine(combineRequest(form, legs, ran), controller.signal)
       if (!combined.ok) return setProblem(combined.error.message)
+      const scenarios = Number(form.scenarios)
+      let monteCarlo: CombinedRun['monteCarlo'] = null
+      if (scenarios) {
+        setPhase({ step: 'scenarios', done: 0, total: scenarios })
+        const bundle = bundleOf(bundled)
+        const requests: EngineRequest[] = jobs.map((job) => job.request)
+        const simulated = await engine().simulateCombined(simulateRequest(form, legs, requests, bundle.markets, newSeed()), bundle.candles, scenarios, {
+          signal: controller.signal,
+          onProgress: (done, total) => setPhase({ step: 'scenarios', done, total }),
+        })
+        if (!simulated.ok) return setProblem(`Monte Carlo: ${simulated.error.message}`)
+        setPhase({ step: 'summary' })
+        const summed = await engine().summarize(
+          { initialBalance: combined.combined.initialBalance, real: simulated.real!, results: simulated.results },
+          controller.signal,
+        )
+        if (!summed.ok) return setProblem(`Monte Carlo: ${summed.error.message}`)
+        monteCarlo = keepCombinedScenarios(simulated, summed.summary, bundle.markets)
+      }
       const run: CombinedRun = {
         kind: 'combined',
         id: newId(),
@@ -182,9 +228,10 @@ export default function CombinedBacktest() {
         engine: combined.engine,
         summaries: ran.map((answer, index) => legSummary(legName(legs[index]!), answer)),
         combined: combined.combined,
+        monteCarlo,
       }
       setCurrent(run)
-      await saveCombined(connection.id, run)
+      await saveCombined(connection.id, run, { keepEverything: keepsEverything() })
       setSaved(await loadCombined(connection.id))
     } catch (error) {
       if (error instanceof EngineCancelled || (error instanceof CommandFailure && error.kind === 'cancelled')) return
@@ -365,6 +412,27 @@ export default function CombinedBacktest() {
                   />
                 </Field>
               </div>
+              <Segmented
+                name="combined-monte-carlo"
+                legend="Monte Carlo"
+                value={form.scenarios}
+                onChange={(scenarios) => setForm({ ...form, scenarios })}
+                options={COMBINED_SCENARIOS.map((value) => ({
+                  value,
+                  label: value === '0' ? 'Off' : `${fmtCount(Number(value))} scenarios`,
+                }))}
+                hint="How many alternative histories of the same dates to backtest every leg on, all the markets made together. Each scenario replays every leg: 100 take about 15 seconds on a computer, longer on a phone."
+              />
+              {form.scenarios !== '0' ? (
+                <Segmented
+                  name="combined-price-paths"
+                  legend="Alternative histories by"
+                  value={form.method}
+                  onChange={(method) => setForm({ ...form, method })}
+                  options={METHODS}
+                  hint="The bootstrap takes whole real days in random blocks, the same days for every market, so real tails and how the markets moved together stay. Brownian motion is a calm random walk with each market’s drift and volatility, correlated as measured: a baseline."
+                />
+              ) : null}
               <div className="btn-row">
                 <Button type="submit" busy={phase != null} icon="backtest">
                   Run the combined backtest
@@ -450,6 +518,15 @@ export default function CombinedBacktest() {
                 align: 'right',
                 render: (run) => run.combined.diversificationRatio?.toFixed(2) ?? '–',
               },
+              {
+                key: 'above',
+                header: 'Above start',
+                align: 'right',
+                render: (run) =>
+                  run.monteCarlo
+                    ? `${fmtPercent(run.monteCarlo.summary.endedAboveStartPercent, 0)} of ${fmtCount(run.monteCarlo.summary.scenarios)}`
+                    : '–',
+              },
               { key: 'currency', header: 'Currency', render: (run) => run.combined.currency },
               { key: 'when', header: 'Run', render: (run) => fmtTime(run.at) },
             ]}
@@ -463,7 +540,7 @@ export default function CombinedBacktest() {
                   variant="ghost"
                   onClick={() => {
                     setLegs(run.legs)
-                    setForm(run.form)
+                    setForm(formOf(run.form))
                     window.scrollTo({ top: 0 })
                   }}
                 >
@@ -546,6 +623,14 @@ function CombinedReportSections({ run }: { run: CombinedRun }) {
           <CombinedNotes result={c} />
         </div>
       </Section>
+      {run.monteCarlo ? (
+        <Section label="Combined Monte Carlo">
+          <div className="section-title">
+            <h2 className="h2">Monte Carlo</h2>
+          </div>
+          <CombinedMonteCarlo mc={run.monteCarlo} currency={c.currency} />
+        </Section>
+      ) : null}
     </>
   )
 }

@@ -1,7 +1,25 @@
 import { describe, expect, it } from 'vitest'
-import { combinedErrors, combinedVerdict, combineRequest, DEFAULT_COMBINED, legErrors, legName, legRequest, legSummary, type LegForm } from './combined.ts'
+import type { CandleColumns } from '../engine/types.ts'
+import {
+  bundleOf,
+  combinedErrors,
+  combinedVerdict,
+  combineRequest,
+  DEFAULT_COMBINED,
+  formOf,
+  keepCombinedScenarios,
+  legErrors,
+  legName,
+  legRequest,
+  legSummary,
+  loadCombined,
+  saveCombined,
+  simulateRequest,
+  type CombinedRun,
+  type LegForm,
+} from './combined.ts'
 import { NO_CONDITIONS } from './conditions.ts'
-import { analysis, combinedResult, deviceAnswer } from './fixtures.ts'
+import { analysis, combinedResult, combinedScenariosAnswer, deviceAnswer, summaryAnswer } from './fixtures.ts'
 
 const leg = (patch: Partial<LegForm> = {}): LegForm => ({
   id: '1', label: '', budget: '1000', conditions: NO_CONDITIONS,
@@ -65,5 +83,67 @@ describe('the combined verdict', () => {
 
   it('says when the legs move together', () => {
     expect(combinedVerdict(combinedResult({ diversificationRatio: 1.01, legs: combinedResult().legs.map((l) => ({ ...l, riskShare: 0.5 })) }))).toMatch(/Little diversification \(1\.01\): the legs move together\.$/)
+  })
+})
+
+describe('the combined Monte Carlo (engine 2.11.0)', () => {
+  const columns = (...closes: number[]): CandleColumns => {
+    const column = (offset: number) => Float64Array.from(closes, (close) => close + offset)
+    return { time: Float64Array.from(closes, (_, i) => i * 3600), open: column(0), high: column(1), low: column(-1), close: column(0), volume: column(0) }
+  }
+
+  it('puts every market in one bundle, once, its candles one market after another', () => {
+    const gold = columns(2000, 2001, 2002)
+    const euro = columns(1.1, 1.2)
+
+    const bundle = bundleOf([
+      { symbol: 'XAUUSD', interval: '1h', candles: gold },
+      { symbol: 'EURUSD', interval: '4h', candles: euro },
+      { symbol: 'EURUSD', interval: '4h', candles: euro },
+    ])
+
+    expect(bundle.markets).toEqual([{ symbol: 'XAUUSD', interval: '1h', count: 3 }, { symbol: 'EURUSD', interval: '4h', count: 2 }])
+    expect([...bundle.candles.close]).toEqual([2000, 2001, 2002, 1.1, 1.2])
+    expect([...bundle.candles.high]).toEqual([2001, 2002, 2003, 2.1, 2.2])
+  })
+
+  it('asks for each leg as its own backtest ran, under the leg’s name', () => {
+    const request = legRequest(leg(), input, null, DEFAULT_COMBINED, null)
+
+    const asked = simulateRequest({ ...DEFAULT_COMBINED, riskFree: '4', method: 'BrownianMotion' }, [leg()], [request], [{ symbol: 'XAUUSD', interval: '1h', count: 3 }], 11)
+
+    expect(asked).toEqual({
+      currency: 'EUR', riskFree: 4, legs: [{ label: 'sample on XAUUSD 1h', request }], markets: [{ symbol: 'XAUUSD', interval: '1h', count: 3 }],
+      scenarios: { method: 'BrownianMotion', seed: 11 },
+    })
+  })
+
+  it('opens a run saved before 2.11.0 with the Monte Carlo off', () => {
+    expect(formOf({ currency: 'USD', riskFree: '1', from: '', to: '' })).toEqual({ currency: 'USD', riskFree: '1', from: '', to: '', scenarios: '0', method: 'Bootstrap' })
+  })
+
+  it('names the markets Brownian motion correlated, in the bundle’s order', () => {
+    const answer = combinedScenariosAnswer(0, 3, { method: 'BrownianMotion', meanBlockDays: null, correlations: [[1, 0.4], [0.4, 1]] })
+
+    const kept = keepCombinedScenarios(answer, summaryAnswer().summary, [{ symbol: 'XAUUSD', interval: '1h', count: 3 }, { symbol: 'EURPLN', interval: '1h', count: 3 }])
+
+    expect(kept.correlations).toEqual({ markets: ['XAUUSD 1h', 'EURPLN 1h'], values: [[1, 0.4], [0.4, 1]] })
+    expect(kept.times[0]).toBe(Date.parse('2025-01-06T00:00:00Z'))
+    expect(kept.real.at(-1)).toBe(2060)
+    expect(kept.finals).toEqual([2000, 2010, 2020])
+  })
+
+  it('keeps every scenario’s path only where the device keeps everything', async () => {
+    const connection = `combined-mc-${Math.random()}`
+    const monteCarlo = keepCombinedScenarios(combinedScenariosAnswer(0, 3), summaryAnswer().summary, [])
+    const run = (id: string): CombinedRun => ({ kind: 'combined', id, at: 1, form: DEFAULT_COMBINED, legs: [], summaries: [], combined: combinedResult(), engine: '2.11.0', monteCarlo })
+
+    await saveCombined(connection, run('browser'), { keepEverything: false })
+    await saveCombined(connection, run('desktop'), { keepEverything: true })
+
+    const [browser, desktop] = (await loadCombined(connection)).sort((a, b) => a.id.localeCompare(b.id))
+    expect(browser!.monteCarlo!.paths).toBeNull()
+    expect(browser!.monteCarlo!.finals).toHaveLength(3)
+    expect(desktop!.monteCarlo!.paths).toHaveLength(3)
   })
 })

@@ -56,7 +56,12 @@ export async function planRoute(engine: Engine, symbol: string, currency: string
   return hops ? { hops } : { error: `No stored market converts ${plan.from} into ${plan.to}.` }
 }
 
-export type PreparedConversion = { conversion: { currency: string; hops: ConversionHop[] } | null; columns: ConversionColumns | undefined }
+export type PreparedConversion = {
+  conversion: { currency: string; hops: ConversionHop[] } | null
+  columns: ConversionColumns | undefined
+  /** Each hop market's whole candles, apart from the leg's own: what a combined Monte Carlo bundles. */
+  markets: { symbol: string; interval: string; candles: CandleColumns }[]
+}
 
 /**
  * The conversion of a run into `currency` (none for the market's own, or ''): the engine's plan, each hop's market copied up
@@ -71,12 +76,13 @@ export async function prepareConversion(
   stored: StoredMarket[],
   { signal, onPhase }: Options = {},
 ): Promise<PreparedConversion> {
-  if (!currency) return { conversion: null, columns: undefined }
+  if (!currency) return { conversion: null, columns: undefined, markets: [] }
   const planned = await planRoute(engine, symbol, currency, stored, signal)
   if ('error' in planned) throw new Error(planned.error)
-  if (!planned.hops.length) return { conversion: null, columns: undefined }
+  if (!planned.hops.length) return { conversion: null, columns: undefined, markets: [] }
   const columns: ConversionColumns = { time: [], close: [] }
   const counts: number[] = []
+  const markets: PreparedConversion['markets'] = []
   for (const hop of planned.hops) {
     if (hop.market === 'own') {
       counts.push(0)
@@ -86,6 +92,7 @@ export async function prepareConversion(
     columns.time.push(...copy.time)
     columns.close.push(...copy.close)
     counts.push(copy.time.length)
+    markets.push({ symbol: hop.market.symbol, interval: hop.market.interval, candles: copy })
   }
-  return { conversion: { currency, hops: requestHops(planned.hops, counts) }, columns }
+  return { conversion: { currency, hops: requestHops(planned.hops, counts) }, columns, markets }
 }

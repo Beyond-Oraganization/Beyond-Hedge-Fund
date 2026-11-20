@@ -60,6 +60,7 @@ const engine: Engine = {
     asked.push({ request, candles, conversion })
     return engineAnswer
   },
+  simulateCombined: () => Promise.reject(new Error('not on this screen')),
   async simulate(request, _candles, count, { onProgress, conversion } = {}) {
     simulated.push({ request, count, conversion })
     onProgress?.(count, count)

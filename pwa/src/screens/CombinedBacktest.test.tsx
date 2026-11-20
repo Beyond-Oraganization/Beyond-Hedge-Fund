@@ -8,10 +8,10 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { createBot, type MockBot } from '../../mock-bot/bot.mjs'
 import { queryClient } from '../api/bot.ts'
 import type { CommandResult } from '../api/types.ts'
-import { analysis, combinedResult, deviceAnswer } from '../backtest/fixtures.ts'
+import { analysis, combinedResult, combinedScenariosAnswer, deviceAnswer, summaryAnswer } from '../backtest/fixtures.ts'
 import { EngineContext } from '../engine/context.ts'
 import type { BacktestJob, Engine } from '../engine/engine.ts'
-import type { CombineRequest } from '../engine/types.ts'
+import type { CandleColumns, CombinedSimulateRequest, CombineRequest, SummaryRequest } from '../engine/types.ts'
 import { useConnections } from '../state/connections.ts'
 import CombinedBacktest from './CombinedBacktest.tsx'
 
@@ -23,6 +23,8 @@ const BOT_URL = 'https://bot.test:8443'
 let bot: MockBot
 let jobs: BacktestJob[] = []
 let combined: CombineRequest[] = []
+let simulated: { request: CombinedSimulateRequest; bundle: CandleColumns; count: number }[] = []
+let summed: SummaryRequest[] = []
 
 const server = setupServer(
   http.get('*/engine/version.json', () => HttpResponse.json({ version: '2.9.0', commit: 'test' })),
@@ -38,7 +40,15 @@ const engine: Engine = {
   levels: () => Promise.reject(new Error('not on this screen')),
   backtest: () => Promise.reject(new Error('not on this screen')),
   simulate: () => Promise.reject(new Error('not on this screen')),
-  summarize: () => Promise.reject(new Error('not on this screen')),
+  async simulateCombined(request, bundle, count, { onProgress } = {}) {
+    simulated.push({ request, bundle, count })
+    onProgress?.(count, count)
+    return combinedScenariosAnswer(0, count)
+  },
+  async summarize(request) {
+    summed.push(request)
+    return summaryAnswer()
+  },
   planSweep: () => Promise.reject(new Error('not on this screen')),
   sweep: () => Promise.reject(new Error('not on this screen')),
   summarizeSweep: () => Promise.reject(new Error('not on this screen')),
@@ -89,6 +99,8 @@ beforeEach(() => {
   bot = createBot({ ticking: false, seed: 3 })
   jobs = []
   combined = []
+  simulated = []
+  summed = []
 })
 afterEach(() => {
   cleanup()
@@ -157,6 +169,56 @@ describe('Several strategies', () => {
     expect(screen.getByText('No legs yet.')).toBeInTheDocument()
     await user.click(within(saved).getByRole('button', { name: 'Use' }))
     expect(within(screen.getByRole('table', { name: 'Legs' })).getByText('sample on EURUSD 4h')).toBeInTheDocument()
+  })
+
+  it('runs no Monte Carlo unless one is asked for', async () => {
+    show()
+    const user = userEvent.setup()
+    await addLeg(user, 'XAUUSD 1h')
+    await addLeg(user, 'EURUSD 4h')
+    await user.click(screen.getByRole('button', { name: 'Run the combined backtest' }))
+
+    await screen.findByRole('heading', { name: 'Gold + Zloty' })
+    expect(simulated).toEqual([])
+    expect(screen.queryByRole('heading', { name: 'Monte Carlo' })).not.toBeInTheDocument()
+  })
+
+  it('backtests every leg again on histories of all its markets made together, each market once in the bundle', async () => {
+    show()
+    const user = userEvent.setup()
+    await addLeg(user, 'XAUUSD 1h', '1500')
+    await addLeg(user, 'EURUSD 4h')
+    await user.click(screen.getByRole('radio', { name: '100 scenarios' }))
+    await user.click(screen.getByRole('radio', { name: 'Brownian motion' }))
+    await user.click(screen.getByRole('button', { name: 'Run the combined backtest' }))
+
+    expect(await screen.findByRole('heading', { name: 'Monte Carlo' })).toBeInTheDocument()
+    const [asked] = simulated
+    expect(asked!.count).toBe(100)
+    // Gold converts through EURUSD 4h, which the second leg trades: the bundle holds it once.
+    expect(asked!.request.markets.map((market) => `${market.symbol} ${market.interval}`)).toEqual(['XAUUSD 1h', 'EURUSD 4h'])
+    expect(asked!.bundle.time.length).toBe(asked!.request.markets.reduce((sum, market) => sum + market.count, 0))
+    expect(asked!.request).toMatchObject({ currency: 'EUR', scenarios: { method: 'BrownianMotion' } })
+    // Each leg runs as its own backtest ran.
+    expect(asked!.request.legs.map((leg) => leg.request)).toEqual(jobs.map((job) => job.request))
+    expect(summed[0]).toMatchObject({ initialBalance: 2000, real: { scenario: -1, finalBalance: 2060 } })
+    expect(screen.getByText(/of 3 alternative pasts ended above the starting balance/)).toBeInTheDocument()
+    expect(within(screen.getByRole('table', { name: 'Saved combined backtests' })).getByText('67% of 3')).toBeInTheDocument()
+  })
+
+  it('shows only the marked drawdown in the combined percentiles, which are measured at each day’s end', async () => {
+    show()
+    const user = userEvent.setup()
+    await addLeg(user, 'XAUUSD 1h')
+    await addLeg(user, 'EURUSD 4h')
+    await user.click(screen.getByRole('radio', { name: '100 scenarios' }))
+    await user.click(screen.getByRole('button', { name: 'Run the combined backtest' }))
+
+    await screen.findByRole('heading', { name: 'Monte Carlo' })
+    const table = screen.getByRole('table', { name: 'Monte Carlo percentiles' })
+    expect(within(table).queryByText('Drawdown, closed')).not.toBeInTheDocument()
+    expect(within(table).getByText('Drawdown, marked')).toBeInTheDocument()
+    expect(screen.getByText(/Whole UTC days are resampled together/)).toBeInTheDocument()
   })
 
   it('names the leg whose conversion cannot be planned', async () => {

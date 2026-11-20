@@ -195,6 +195,28 @@ test('combines several strategies with the bot’s engine: two legs in EUR, thei
   await expect(saved.getByText('sample on XAUUSD 1h + sample on EURUSD 4h')).toBeVisible()
 })
 
+test('runs a combined Monte Carlo with the bot’s engine: two legs, 100 scenarios, all the markets made together', async ({ page }) => {
+  await connected(page)
+  await page.goto('#/backtest')
+  await page.getByRole('link', { name: 'Several strategies' }).click()
+  for (const market of ['XAUUSD 1h', 'EURUSD 4h']) {
+    await page.getByRole('button', { name: 'Add a leg' }).click()
+    const sheet = page.getByRole('dialog', { name: 'Add a leg' })
+    await sheet.getByLabel('Market').selectOption(market)
+    await sheet.getByRole('button', { name: 'Add the leg' }).click()
+    await expect(sheet).toBeHidden()
+  }
+  await page.getByRole('radio', { name: '100 scenarios' }).check()
+  await page.getByRole('button', { name: 'Run the combined backtest' }).click()
+  // The real engine gets XAUUSD 1h and EURUSD 4h in one column bundle (gold converts through EURUSD, which the second leg trades).
+  await expect(page.getByRole('heading', { name: 'Monte Carlo' })).toBeVisible({ timeout: 180_000 })
+  await expect(page.getByText(/of 100 alternative pasts ended above the starting balance of 2,000\.00/)).toBeVisible()
+  await expect(page.getByText(/^Whole UTC days are resampled together in blocks of about/)).toBeVisible()
+  await expect(page.getByText(/The real history beat \d+% of them\./)).toBeVisible()
+  const saved = page.getByRole('table', { name: 'Saved combined backtests' }).or(page.getByRole('list', { name: 'Saved combined backtests' }))
+  await expect(saved.getByText(/\d+% of 100/)).toBeVisible()
+})
+
 test('sweeps a strategy’s parameters with the bot’s engine: 12 trials, the verdict, the heat map, every trial and the export', async ({ page }) => {
   await connected(page)
   await page.goto('#/backtest')

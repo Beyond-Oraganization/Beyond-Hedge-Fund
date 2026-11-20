@@ -3,6 +3,9 @@ import type {
   CandleColumns,
   CombineAnswer,
   CombineRequest,
+  CombinedSimulateRequest,
+  DeviceCombinedScenarios,
+  SimulateCombinedAnswer,
   ConversionColumns,
   ConversionPlanAnswer,
   ConversionPlanRequest,
@@ -66,6 +69,16 @@ export interface Engine {
    * how many are done after each. A combined backtest's legs run this way.
    */
   backtestAll(jobs: BacktestJob[], options?: { signal?: AbortSignal; onProgress?: (done: number, total: number) => void }): Promise<EngineAnswer[]>
+  /**
+   * Backtests scenarios 0 to `count` − 1 of a combined backtest (engine 2.11.0 on), every market's path made together from
+   * one column bundle, shared out to the workers. The scenarios come back in order, with the real history from the first share.
+   */
+  simulateCombined(
+    request: CombinedSimulateRequest,
+    bundle: CandleColumns,
+    count: number,
+    options?: { signal?: AbortSignal; onProgress?: (done: number, total: number) => void },
+  ): Promise<SimulateCombinedAnswer>
   /** Adds up the legs of a combined backtest (engine 2.9.0 on): no candles, just their daily equity. */
   combine(request: CombineRequest, signal?: AbortSignal): Promise<CombineAnswer>
   /** How many trials a sweep has, its axes in the grid's order, and the trials the strategy refuses (engine 2.10.0 on). */
@@ -280,6 +293,33 @@ export function createEngine({ base = engineBase(), workers = poolSize(), spawn 
         return true
       })
       return answers
+    },
+
+    async simulateCombined(request, bundle, count, { signal, onProgress } = {}) {
+      // A combined scenario replays every leg, so shares are a few scenarios each, as a sweep's trials are.
+      const text = JSON.stringify(request)
+      const shares: DeviceCombinedScenarios[] = []
+      let failure: SimulateCombinedAnswer | null = null
+      let done = 0
+      await shareOut(count, sweepShareSize(count, workers), workers, async (index, first, share) => {
+        const answer = JSON.parse(await call(index, { kind: 'simulateCombined', request: text, candles: bundle, first, count: share }, signal)) as SimulateCombinedAnswer
+        if (!answer.ok) {
+          failure = answer
+          return false
+        }
+        shares.push(answer)
+        done += share
+        onProgress?.(done, count)
+        return true
+      })
+      if (failure) return failure
+      const head = shares.find((share) => share.real)
+      if (!head) throw new Error('The engine ran no share of the Monte Carlo.')
+      return {
+        ...head,
+        results: shares.flatMap((share) => share.results).sort((a, b) => a.scenario - b.scenario),
+        computedMs: shares.reduce((sum, share) => sum + share.computedMs, 0),
+      }
     },
 
     async planSweep(request, signal) {

@@ -14,6 +14,8 @@ export type WorkerCall =
   | { id: number; base: string; kind: 'simulate'; request: string; candles: CandleColumns; first: number; count: number; conversion: ConversionColumns }
   | { id: number; base: string; kind: 'planConversion'; request: string }
   | { id: number; base: string; kind: 'combine'; request: string }
+  /** Every market of a combined backtest as one column bundle (engine 2.11.0 on). */
+  | { id: number; base: string; kind: 'simulateCombined'; request: string; candles: CandleColumns; first: number; count: number }
   | { id: number; base: string; kind: 'planSweep'; request: string }
   | { id: number; base: string; kind: 'sweep'; request: string; candles: CandleColumns; first: number; count: number; conversion: ConversionColumns }
   | { id: number; base: string; kind: 'summarizeSweep'; request: string }
@@ -33,6 +35,8 @@ type EngineExports = {
   PlanConversion: (request: string) => string
   /** Engine 2.9.0 on. */
   Combine: (request: string) => string
+  /** Engine 2.11.0 on. */
+  SimulateCombined: (request: string, ...columnsThenRange: [...Columns, first: number, count: number]) => string
   /** Engine 2.10.0 on. */
   PlanSweep: (request: string) => string
   Sweep: (request: string, ...columnsRangeConversion: [...Columns, first: number, count: number, conversionTimes: number[], conversionCloses: number[]]) => string
@@ -85,6 +89,8 @@ function answer(exports: EngineExports, call: WorkerCall): string {
       return exports.PlanConversion(call.request)
     case 'combine':
       return exports.Combine(call.request)
+    case 'simulateCombined':
+      return exports.SimulateCombined(call.request, ...columns(call.candles), call.first, call.count)
     case 'planSweep':
       return exports.PlanSweep(call.request)
     case 'sweep':
